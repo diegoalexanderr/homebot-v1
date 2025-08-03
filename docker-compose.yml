@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  flask:
+    build: .
+    container_name: flask_chatbot
+    environment:
+      - N8N_WEBHOOK_URL=http://10.0.0.250/webhook/060475cd-92c9-43d7-a4fe-1aec1bed0178/chat
+      - OPENAI_API_KEY=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
+    expose:
+      - "5000"
+  nginx:
+    image: nginx:latest
+    container_name: nginx_chatbot
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./static:/app/static
+    depends_on:
+      - flask
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n
+    ports:
+      - "5678:5678"
