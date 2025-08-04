@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeBot with OpenAI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- NEW: Added the marked.js library to parse Markdown -->
+    <!-- Libraries for Markdown and Chart rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
         /* --- Base Styles & Resets --- */
         :root {
@@ -47,25 +48,41 @@
             overflow: hidden;
         }
 
-        /* --- Sidebar (Mobile First) --- */
+        /* --- Sidebars --- */
         .sidebar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            width: 260px;
             background: #ffffff;
             border-right: 1px solid var(--border-light);
             display: flex;
             flex-direction: column;
             padding: 16px;
             z-index: 200;
+            transition: all 0.3s ease-in-out;
+            flex-shrink: 0;
+        }
+        
+        #left-sidebar {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 260px;
             transform: translateX(-100%);
-            transition: transform 0.3s ease-in-out;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
 
-        .sidebar.is-open {
+        #left-sidebar.is-open {
+            transform: translateX(0);
+        }
+        
+        /* NEW: Right Sidebar for Context */
+        #right-sidebar {
+            width: 280px;
+            border-right: none;
+            border-left: 1px solid var(--border-light);
+            transform: translateX(100%);
+            position: absolute;
+            top: 0; right: 0; bottom: 0;
+        }
+
+        #right-sidebar.is-open {
             transform: translateX(0);
         }
 
@@ -144,6 +161,7 @@
         .chat-header {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 12px;
             flex-shrink: 0;
             background: var(--background-light);
@@ -152,6 +170,12 @@
             font-size: 1.2rem;
             font-weight: 600;
             color: var(--text-dark);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
         .sidebar-toggle {
@@ -181,7 +205,7 @@
             border-radius: 2px;
             margin: 2px 0;
         }
-        #sidebarCloseBtn svg {
+        .sidebar-toggle svg {
             stroke: var(--primary-color);
             transition: stroke 0.2s ease;
         }
@@ -271,18 +295,11 @@
             border-radius: 12px 12px 12px 2px;
         }
         
-        /* NEW: Styles for rendered Markdown content */
-        .bubble ul {
-            padding-left: 20px;
-            margin-top: 8px;
-            margin-bottom: 8px;
-        }
-        .bubble p {
-            margin: 0;
-        }
-        .bubble p:not(:last-child) {
-            margin-bottom: 12px;
-        }
+        /* Styles for rendered Markdown and Charts */
+        .bubble ul { padding-left: 20px; margin-top: 8px; margin-bottom: 8px; }
+        .bubble p { margin: 0; }
+        .bubble p:not(:last-child) { margin-bottom: 12px; }
+        .echarts-container { width: 100%; height: 300px; margin-top: 1rem; }
 
         /* Typing Indicator */
         .typing-indicator { display: flex; align-items: center; gap: 5px; }
@@ -335,9 +352,41 @@
         #send:disabled { background: #ccc; cursor: not-allowed; }
         #send svg { width: 20px; height: 20px; stroke: var(--text-light); stroke-width: 2; }
         
+        /* NEW: Styles for the Smart Context Sidebar */
+        .context-section {
+            margin-bottom: 24px;
+        }
+        .context-title {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+        .context-card {
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        .context-card strong {
+            display: block;
+            color: var(--primary-dark);
+            margin-bottom: 4px;
+        }
+        .notes-list {
+            list-style-type: '📌';
+            padding-left: 20px;
+        }
+        .notes-list li {
+            padding-left: 8px;
+            margin-bottom: 8px;
+        }
+
         /* --- Desktop & Tablet Styles --- */
         @media (min-width: 768px) {
-            .sidebar {
+            #left-sidebar {
                 position: static;
                 transform: none;
                 box-shadow: none;
@@ -345,7 +394,7 @@
                 transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, transform 0.3s ease-in-out;
             }
 
-            .sidebar:not(.is-open) {
+            #left-sidebar:not(.is-open) {
                 width: 0;
                 padding-left: 0;
                 padding-right: 0;
@@ -357,15 +406,29 @@
                 display: none;
             }
             
-            .sidebar:not(.is-open) + .main-chat #sidebarOpenBtn {
+            #left-sidebar:not(.is-open) + .main-chat #sidebarOpenBtn {
                 display: flex;
+            }
+
+            #right-sidebar {
+                position: static;
+                transform: none;
+                box-shadow: none;
+                width: 280px;
+            }
+            #right-sidebar:not(.is-open) {
+                width: 0;
+                padding-left: 0;
+                padding-right: 0;
+                overflow: hidden;
+                border-left: none;
             }
         }
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar" id="left-sidebar">
             <div class="sidebar-header">
                 <button id="newConversation">
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -385,12 +448,18 @@
 
         <div class="main-chat">
             <div class="chat-header">
-                <div class="sidebar-toggle" id="sidebarOpenBtn">
-                    <div class="line"></div>
-                    <div class="line"></div>
-                    <div class="line"></div>
+                <div class="header-left">
+                    <div class="sidebar-toggle" id="sidebarOpenBtn">
+                        <div class="line"></div>
+                        <div class="line"></div>
+                        <div class="line"></div>
+                    </div>
+                    HomeBot
                 </div>
-                HomeBot
+                <!-- NEW: Toggle for the right sidebar -->
+                <div class="sidebar-toggle" id="contextToggleBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6Z"/><path d="M12 2v20"/><path d="M18 6H6"/></svg>
+                </div>
             </div>
             <div class="chat-messages" id="messages"></div>
             <div class="chat-input-area">
@@ -405,13 +474,27 @@
                 </form>
             </div>
         </div>
+        
+        <!-- NEW: Right Sidebar HTML Structure -->
+        <div class="sidebar" id="right-sidebar">
+            <div class="context-section" id="context-entities">
+                <div class="context-title">Smart Context</div>
+                <div id="entities-content"></div>
+            </div>
+            <div class="context-section" id="context-notes">
+                <div class="context-title">Key Notes</div>
+                <ul class="notes-list" id="notes-content"></ul>
+            </div>
+        </div>
     </div>
 
     <script>
         // --- DOM Element References ---
-        const sidebar = document.getElementById('sidebar');
+        const leftSidebar = document.getElementById('left-sidebar');
+        const rightSidebar = document.getElementById('right-sidebar');
         const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
         const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+        const contextToggleBtn = document.getElementById('contextToggleBtn');
         const newConversationBtn = document.getElementById('newConversation');
         const sessionList = document.getElementById('sessionList');
         const messagesContainer = document.getElementById('messages');
@@ -419,6 +502,8 @@
         const chatForm = document.getElementById('chatForm');
         const input = document.getElementById('input');
         const sendBtn = document.getElementById('send');
+        const entitiesContent = document.getElementById('entities-content');
+        const notesContent = document.getElementById('notes-content');
 
         // --- State Management ---
         let currentSessionId = null;
@@ -436,6 +521,9 @@
             currentSessionId = generateSessionId();
             messagesContainer.innerHTML = '';
             suggestionsContainer.innerHTML = '';
+            entitiesContent.innerHTML = '';
+            notesContent.innerHTML = '';
+            rightSidebar.classList.remove('is-open');
             input.value = '';
             input.focus();
             renderSessionList();
@@ -468,8 +556,16 @@
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
             
-            // NEW: Use marked.parse to render Markdown content
-            bubble.innerHTML = marked.parse(message.content);
+            if (message.content.includes('echarts-container')) {
+                bubble.innerHTML = message.content;
+                const scripts = bubble.querySelectorAll('script');
+                scripts.forEach(script => {
+                    try { new Function(script.textContent)(); } 
+                    catch (e) { console.error("Error executing chart script:", e); }
+                });
+            } else {
+                bubble.innerHTML = marked.parse(message.content);
+            }
 
             msgDiv.appendChild(bubble);
             messagesContainer.appendChild(msgDiv);
@@ -517,13 +613,15 @@
             currentSessionId = sessionId;
             messagesContainer.innerHTML = '';
             suggestionsContainer.innerHTML = '';
+            entitiesContent.innerHTML = '';
+            notesContent.innerHTML = '';
+            rightSidebar.classList.remove('is-open');
             const session = sessions[sessionId];
             if (session) session.messages.forEach(msg => renderSingleMessage(msg));
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             renderSessionList();
-            // On mobile, close the sidebar after selecting a session
             if (window.innerWidth < 768) {
-                sidebar.classList.remove('is-open');
+                leftSidebar.classList.remove('is-open');
             }
         }
 
@@ -541,12 +639,41 @@
                 suggestionsContainer.appendChild(btn);
             });
         }
+        
+        // NEW: Function to render the context sidebar
+        function renderContextSidebar(data) {
+            entitiesContent.innerHTML = '';
+            notesContent.innerHTML = '';
+
+            if (data.entities && data.entities.length > 0) {
+                data.entities.forEach(entity => {
+                    const card = document.createElement('div');
+                    card.className = 'context-card';
+                    card.innerHTML = `<strong>${entity.term}</strong><p>${entity.definition}</p>`;
+                    entitiesContent.appendChild(card);
+                });
+            }
+
+            if (data.notes && data.notes.length > 0) {
+                data.notes.forEach(note => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = note;
+                    notesContent.appendChild(listItem);
+                });
+            }
+
+            // Only open the sidebar if there is content to show
+            if ((data.entities && data.entities.length > 0) || (data.notes && data.notes.length > 0)) {
+                rightSidebar.classList.add('is-open');
+            } else {
+                rightSidebar.classList.remove('is-open');
+            }
+        }
 
         // --- Backend API Calls ---
         async function getAiResponse(sessionId) {
             showTypingIndicator();
             try {
-                // First, get the main reply from the n8n webhook
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -560,13 +687,12 @@
                 if (!response.ok) throw new Error(`n8n API error: ${response.statusText}`);
                 
                 const result = await response.json();
-                
                 const botReply = result.reply || result.output;
 
                 if (botReply) {
                     addMessage(botReply, 'assistant', sessionId);
-                    // After adding the main reply, fetch suggestions
                     fetchSuggestions(sessionId);
+                    fetchContext(sessionId); // Fetch context after bot replies
                 } else {
                      addMessage("Sorry, I didn't get a valid response from the workflow.", 'assistant', sessionId);
                 }
@@ -595,6 +721,22 @@
                 }
             } catch (error) {
                 console.error("Suggestion fetch failed:", error);
+            }
+        }
+
+        // NEW: Function to fetch context
+        async function fetchContext(sessionId) {
+            try {
+                const response = await fetch('/api/context', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                });
+                if (!response.ok) return;
+                const result = await response.json();
+                renderContextSidebar(result);
+            } catch (error) {
+                console.error("Context fetch failed:", error);
             }
         }
 
@@ -634,11 +776,13 @@
             await getAiResponse(currentSessionId);
         };
         
-        const toggleSidebar = () => sidebar.classList.toggle('is-open');
+        const toggleLeftSidebar = () => leftSidebar.classList.toggle('is-open');
+        const toggleRightSidebar = () => rightSidebar.classList.toggle('is-open');
 
         newConversationBtn.onclick = startNewSession;
-        sidebarOpenBtn.onclick = toggleSidebar;
-        sidebarCloseBtn.onclick = toggleSidebar;
+        sidebarOpenBtn.onclick = toggleLeftSidebar;
+        sidebarCloseBtn.onclick = toggleLeftSidebar;
+        contextToggleBtn.onclick = toggleRightSidebar;
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -655,14 +799,12 @@
 
         // --- Utility Functions ---
         function copyToClipboard(text, element) {
-            if (element.classList.contains('copied')) return; // Prevent re-triggering animation
+            if (element.classList.contains('copied')) return;
 
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(() => {
                     element.classList.add('copied');
-                    setTimeout(() => {
-                        element.classList.remove('copied');
-                    }, 1500);
+                    setTimeout(() => { element.classList.remove('copied'); }, 1500);
                 }).catch(err => {
                     console.error('Async clipboard copy failed:', err);
                     fallbackCopyTextToClipboard(text, element);
@@ -678,39 +820,36 @@
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
-
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-
             try {
                 const successful = document.execCommand('copy');
                 if (successful) {
                     element.classList.add('copied');
-                    setTimeout(() => {
-                        element.classList.remove('copied');
-                    }, 1500);
+                    setTimeout(() => { element.classList.remove('copied'); }, 1500);
                 }
             } catch (err) {
                 console.error('Fallback copy command was unsuccessful:', err);
             }
-
             document.body.removeChild(textArea);
         }
 
         // --- Initialization ---
         const handleResize = () => {
-            if (window.innerWidth < 768) {
-                sidebar.classList.remove('is-open');
+            if (window.innerWidth < 1024) { // Increased breakpoint for three columns
+                leftSidebar.classList.remove('is-open');
+                rightSidebar.classList.remove('is-open');
             } else {
-                sidebar.classList.add('is-open');
+                leftSidebar.classList.add('is-open');
+                // Keep right sidebar closed by default on load
             }
         };
 
         window.addEventListener('resize', handleResize);
 
         window.onload = () => {
-            handleResize(); // Set initial state
+            handleResize();
             startNewSession();
             adjustTextareaHeight();
         };
