@@ -327,7 +327,7 @@
                     <div class="line"></div>
                     <div class="line"></div>
                 </div>
-                HomeBot (OpenAI)
+                HomeBot
             </div>
             <div class="chat-messages" id="messages"></div>
             <div class="chat-input-area">
@@ -360,10 +360,6 @@
         let currentSessionId = null;
         let sessions = {};
         let isSummarizing = false;
-        let openAiApiKey = null;
-
-        // --- OpenAI API Configuration ---
-        const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
         
         // --- Core Functions ---
         function generateSessionId() { return 'sess_' + Date.now(); }
@@ -459,6 +455,7 @@
 
         function renderSuggestions(suggestions) {
             suggestionsContainer.innerHTML = '';
+            if (!suggestions || suggestions.length === 0) return;
             suggestions.forEach(text => {
                 const btn = document.createElement('button');
                 btn.className = 'suggestion-btn';
@@ -471,87 +468,33 @@
             });
         }
 
-        // --- OpenAI API Calls ---
+        // --- Backend API Calls ---
         async function getAiResponse(sessionId) {
-            if (!openAiApiKey) {
-                alert("OpenAI API Key is not set.");
-                sendBtn.disabled = false;
-                return;
-            }
             showTypingIndicator();
-
-            const payload = {
-                model: "gpt-4o",
-                messages: sessions[sessionId].messages,
-                tools: [{
-                    type: "function",
-                    function: {
-                        name: "show_suggested_replies",
-                        description: "Show the user a few short suggested replies to continue the conversation.",
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                replies: {
-                                    type: "array",
-                                    items: { type: "string" },
-                                    description: "An array of 3 short, relevant, and engaging replies."
-                                }
-                            },
-                            required: ["replies"]
-                        }
-                    }
-                }],
-                tool_choice: { type: "function", function: { name: "show_suggested_replies" } }
-            };
-
             try {
-                const response = await fetch(OPENAI_API_URL, {
+                const response = await fetch('/api/chat', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${openAiApiKey}`
-                    },
-                    body: JSON.stringify(payload)
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
                 });
 
+                hideTypingIndicator();
                 if (!response.ok) throw new Error(`API error: ${response.statusText}`);
                 
                 const result = await response.json();
-                const choice = result.choices[0].message;
 
-                // First, add the main text response from the assistant
-                const mainResponsePayload = {
-                    model: "gpt-4o",
-                    messages: [...sessions[sessionId].messages, { role: "assistant", content: "..." }] // Add placeholder for context
-                };
-                mainResponsePayload.messages[mainResponsePayload.messages.length - 1].content = "Please provide a conversational response to the last user message.";
-                
-                const mainResponse = await fetch(OPENAI_API_URL, {
-                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${openAiApiKey}`
-                    },
-                    body: JSON.stringify({model: "gpt-4o", messages: sessions[sessionId].messages})
-                });
-                const mainResult = await mainResponse.json();
-                hideTypingIndicator();
-                addMessage(mainResult.choices[0].message.content, 'assistant', sessionId);
-
-                // Then, check for tool call for suggested replies
-                if (choice.tool_calls) {
-                    const toolCall = choice.tool_calls[0];
-                    if (toolCall.function.name === "show_suggested_replies") {
-                        const args = JSON.parse(toolCall.function.arguments);
-                        renderSuggestions(args.replies);
-                    }
+                if (result.reply) {
+                    addMessage(result.reply, 'assistant', sessionId);
+                }
+                if (result.suggestions) {
+                    renderSuggestions(result.suggestions);
                 }
                 
                 updateSessionSummary(sessionId);
             } catch (error) {
-                console.error("OpenAI API call failed:", error);
+                console.error("API call failed:", error);
                 hideTypingIndicator();
-                addMessage("Sorry, I'm having trouble connecting. Please check your API key and try again.", 'assistant', sessionId);
+                addMessage("Sorry, something went wrong. Please check the server logs and try again.", 'assistant', sessionId);
             } finally {
                 sendBtn.disabled = false;
             }
@@ -560,25 +503,16 @@
         async function updateSessionSummary(sessionId) {
             if (isSummarizing || sessions[sessionId].messages.length < 2) return;
             isSummarizing = true;
-
-            const summaryPrompt = [...sessions[sessionId].messages, {
-                role: "user",
-                content: "Summarize our conversation so far in 5 words or less."
-            }];
             
             try {
-                const response = await fetch(OPENAI_API_URL, {
+                const response = await fetch('/api/summarize', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${openAiApiKey}`
-                    },
-                    body: JSON.stringify({ model: "gpt-4o", messages: summaryPrompt })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
                 });
                 const result = await response.json();
-                if (result.choices && result.choices.length > 0) {
-                    const summary = result.choices[0].message.content.trim().replace(/"/g, '');
-                    sessions[sessionId].summary = `✨ ${summary}`;
+                if (result.summary) {
+                    sessions[sessionId].summary = `✨ ${result.summary}`;
                     renderSessionList();
                 }
             } catch (error) {
@@ -620,13 +554,6 @@
 
         // --- Initialization ---
         window.onload = () => {
-            openAiApiKey = prompt("Please enter your OpenAI API Key:");
-            if (!openAiApiKey) {
-                alert("API Key not provided. The chat will be disabled.");
-                input.disabled = true;
-                sendBtn.disabled = true;
-                input.placeholder = "Please refresh and enter an API key to begin.";
-            }
             startNewSession();
             adjustTextareaHeight();
         };
