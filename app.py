@@ -1,103 +1,80 @@
-import os
+from flask import Flask, render_template, request, jsonify
 import requests
-import uuid
-from flask import Flask, request, jsonify, render_template
+import os
+import openai
+import uuid  # <-- New import for generating unique IDs
 
-# Initialize the Flask application
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__)
 
-# Get the necessary variables from the environment
-N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY') # This will be passed to n8n
+# Fetch environment variables for n8n and OpenAI
+N8N_WEBHOOK_URL = os.environ['N8N_WEBHOOK_URL']
+OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
+openai.api_key = OPENAI_API_KEY
 
-# This is the main route that will serve your index.html file
 @app.route('/')
 def index():
-    """Renders the main chat interface."""
+    """Renders the main page."""
     return render_template('index.html')
 
-# This endpoint handles the main chat functionality by calling the n8n webhook
-@app.route('/api/chat', methods=['POST'])
-def chat():
+@app.route('/send_message', methods=['POST'])
+def send_message():
     """
-    Receives chat messages and a session ID from the frontend,
-    and forwards them to the n8n webhook for processing.
+    Handles incoming user messages, generates a session ID,
+    forwards the message to an n8n webhook, and returns the bot's reply.
     """
-    if not N8N_WEBHOOK_URL or not OPENAI_API_KEY:
-        return jsonify({"error": "N8N_WEBHOOK_URL or OPENAI_API_KEY environment variable not set."}), 500
-
     data = request.json
-    messages = data.get('messages')
-    session_id = data.get('sessionId', str(uuid.uuid4())) # Use existing or create new session ID
+    # Handle the case where the JSON data might be an array
+    if isinstance(data, list) and len(data) > 0:
+        data = data[0]
 
-    if not messages:
-        return jsonify({"error": "No messages provided."}), 400
+    user_message = data.get('message')
 
-    # The payload that will be sent to your n8n workflow
-    n8n_payload = {
-        "task": "chat",
-        "sessionId": session_id,
-        "messages": messages,
-        "api_key": OPENAI_API_KEY
-    }
+    if not user_message:
+        return jsonify({'reply': 'No message received.'}), 400
 
+    # Generate a new, random session ID on the server
+    session_id = str(uuid.uuid4())
+
+    # Forward message and the new session ID to the n8n webhook
     try:
-        # Forward the request to your n8n webhook
-        response = requests.post(N8N_WEBHOOK_URL, json=n8n_payload)
-        response.raise_for_status()  # Raise an exception for bad status codes
-
-        # n8n is expected to return a JSON object with 'reply' and 'suggestions'
-        n8n_response_data = response.json()
+        response = requests.post(N8N_WEBHOOK_URL, json={
+            'chatInput': user_message,
+            'sessionId': session_id # <-- Passing the newly generated session ID
+        })
+        response.raise_for_status() # Raise an exception for bad status codes
+        bot_reply = response.json().get('output', 'No reply from webhook.')
         
-        # Handle cases where n8n might wrap the response
-        final_data = n8n_response_data.get('json', n8n_response_data)
-
-        return jsonify(final_data)
+        # Return the bot's reply and the new session ID to the client
+        return jsonify({'reply': bot_reply, 'sessionId': session_id})
 
     except requests.exceptions.RequestException as e:
-        print(f"Error calling n8n webhook: {e}")
-        return jsonify({"error": "Failed to communicate with the n8n webhook."}), 502
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return jsonify({"error": "An internal server error occurred."}), 500
+        # Handle any errors during the webhook request
+        print(f"Error sending message to n8n: {e}")
+        return jsonify({'reply': 'Failed to get a response from the webhook.'}), 500
 
-# This endpoint handles the summary generation by calling the n8n webhook
-@app.route('/api/summarize', methods=['POST'])
-def summarize():
+
+@app.route('/summarize_session', methods=['POST'])
+def summarize_session():
     """
-    Receives messages for summarization and forwards them to the n8n webhook
-    with a 'summarize' task flag.
+    Summarizes a chat session using the OpenAI API.
     """
-    if not N8N_WEBHOOK_URL or not OPENAI_API_KEY:
-        return jsonify({"error": "N8N_WEBHOOK_URL or OPENAI_API_KEY environment variable not set."}), 500
-    
     data = request.json
-    messages = data.get('messages')
+    messages = data.get('messages', [])
     if not messages:
-        return jsonify({"error": "No messages provided for summary."}), 400
-        
-    # The payload for the summarization task
-    n8n_payload = {
-        "task": "summarize",
-        "messages": messages,
-        "api_key": OPENAI_API_KEY
-    }
+        return jsonify({"summary": "No messages to summarize."}), 400
+    
+    # Construct the prompt for the summarization
+    prompt = "Summarize the following chat session in one short sentence for a sidebar label:\n" + "\n".join(messages)
     
     try:
-        # Forward the request to your n8n webhook
-        response = requests.post(N8N_WEBHOOK_URL, json=n8n_payload)
-        response.raise_for_status()
-        
-        n8n_response_data = response.json()
-        final_data = n8n_response_data.get('json', n8n_response_data)
-
-        return jsonify(final_data)
-        
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        summary = response.choices[0].message.content.strip()
+        return jsonify({"summary": summary})
     except Exception as e:
-        print(f"Error calling n8n for summary: {e}")
-        return jsonify({"error": "Failed to generate summary via n8n"}), 500
-
+        return jsonify({"summary": f"Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    # This is for local development. In production, Gunicorn will be used.
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
