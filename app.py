@@ -27,7 +27,7 @@ def send_message():
     if isinstance(data, list) and len(data) > 0:
         data = data[0]
 
-    user_message = data.get('message')
+    user_message = data.get('chatInput')
 
     if not user_message:
         return jsonify({'reply': 'No message received.'}), 400
@@ -38,7 +38,7 @@ def send_message():
     # Forward message and the new session ID to the n8n webhook
     try:
         response = requests.post(N8N_WEBHOOK_URL, json={
-            'message': user_message,
+            'chatInput': user_message,
             'sessionId': session_id # <-- Passing the newly generated session ID
         })
         response.raise_for_status() # Raise an exception for bad status codes
