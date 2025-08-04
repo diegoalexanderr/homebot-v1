@@ -322,13 +322,28 @@
         
         /* --- Desktop & Tablet Styles --- */
         @media (min-width: 768px) {
-            .sidebar { position: static; transform: translateX(0); box-shadow: none; width: 260px; padding: 24px; }
-            #sidebarOpenBtn, #sidebarCloseBtn { display: none !important; } /* Hide both toggles on desktop */
-            .chat-header { padding: 16px 24px; font-size: 1.5rem; }
-            .chat-messages { padding: 24px; }
-            #reply-suggestions { padding: 8px 24px 4px; }
-            .chat-input-form { padding: 8px 24px 16px; }
-            .message { max-width: 75%; }
+            .sidebar {
+                position: static;
+                transform: none;
+                box-shadow: none;
+                width: 260px;
+                transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
+            }
+
+            .sidebar:not(.is-open) {
+                width: 0;
+                padding-left: 0;
+                padding-right: 0;
+                overflow: hidden;
+            }
+
+            #sidebarOpenBtn {
+                display: none;
+            }
+            
+            .sidebar:not(.is-open) + .main-chat #sidebarOpenBtn {
+                display: flex;
+            }
         }
     </style>
 </head>
@@ -342,7 +357,6 @@
                     </svg>
                     <span>New Chat</span>
                 </button>
-                <!-- NEW: Close button inside the sidebar -->
                 <div class="sidebar-toggle" id="sidebarCloseBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </div>
@@ -488,7 +502,10 @@
             if (session) session.messages.forEach(msg => renderSingleMessage(msg));
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             renderSessionList();
-            if (window.innerWidth < 768) sidebar.classList.remove('is-open');
+            // On mobile, close the sidebar after selecting a session
+            if (window.innerWidth < 768) {
+                sidebar.classList.remove('is-open');
+            }
         }
 
         function renderSuggestions(suggestions) {
@@ -596,10 +613,12 @@
             sendBtn.disabled = true;
             await getAiResponse(currentSessionId);
         };
+        
+        const toggleSidebar = () => sidebar.classList.toggle('is-open');
 
         newConversationBtn.onclick = startNewSession;
-        sidebarOpenBtn.onclick = () => sidebar.classList.toggle('is-open');
-        sidebarCloseBtn.onclick = () => sidebar.classList.toggle('is-open');
+        sidebarOpenBtn.onclick = toggleSidebar;
+        sidebarCloseBtn.onclick = toggleSidebar;
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -618,7 +637,6 @@
         function copyToClipboard(text, element) {
             if (element.classList.contains('copied')) return; // Prevent re-triggering animation
 
-            // --- ROBUST CLIPBOARD FUNCTION ---
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(() => {
                     element.classList.add('copied');
@@ -662,6 +680,10 @@
 
         // --- Initialization ---
         window.onload = () => {
+            // On desktop, the sidebar should start open.
+            if (window.innerWidth >= 768) {
+                sidebar.classList.add('is-open');
+            }
             startNewSession();
             adjustTextareaHeight();
         };
