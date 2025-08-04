@@ -59,11 +59,12 @@ def chat():
         print(f"An unexpected error occurred: {e}")
         return jsonify({"error": "An internal server error occurred."}), 500
 
-# This endpoint now calls OpenAI directly for summarization
+# This endpoint now calls OpenAI directly for summarization and a dynamic emoji
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
     """
-    Summarizes a chat session by calling the OpenAI API directly.
+    Summarizes a chat session by calling the OpenAI API directly, requesting
+    both a summary and a relevant emoji.
     """
     if not OPENAI_API_KEY:
         return jsonify({"summary": "OpenAI API key not configured."}), 500
@@ -73,20 +74,51 @@ def summarize():
     if not messages:
         return jsonify({"summary": "No messages to summarize."}), 400
         
-    prompt_messages = messages + [{"role": "system", "content": "Summarize the following chat session in 5 words or less for a sidebar label."}]
+    # Define a tool to get structured JSON output from the model
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "format_summary_with_emoji",
+            "description": "Formats the session summary with a title and a single relevant emoji.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": { "type": "string", "description": "A short summary of the conversation, 5 words or less." },
+                    "emoji": { "type": "string", "description": "A single emoji that best represents the topic." }
+                },
+                "required": ["summary", "emoji"]
+            }
+        }
+    }]
+    
+    prompt_messages = messages + [{"role": "system", "content": "Summarize the conversation and provide a relevant emoji."}]
     
     try:
         response = openai.chat.completions.create(
-            model="gpt-3.5-turbo", messages=prompt_messages, max_tokens=20
+            model="gpt-4o",
+            messages=prompt_messages,
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "format_summary_with_emoji"}}
         )
-        summary = response.choices[0].message.content.strip().replace('"', '')
-        return jsonify({"summary": summary})
+        
+        choice = response.choices[0].message
+        summary = "Could not summarize."
+        emoji = "✨" # Default emoji
+
+        if choice.tool_calls:
+            tool_call = choice.tool_calls[0]
+            if tool_call.function.name == "format_summary_with_emoji":
+                arguments = json.loads(tool_call.function.arguments)
+                summary = arguments.get('summary', summary)
+                emoji = arguments.get('emoji', emoji)
+        
+        return jsonify({"summary": summary, "emoji": emoji})
         
     except Exception as e:
         print(f"Error calling OpenAI for summary: {e}")
-        return jsonify({"summary": "Could not summarize."}), 500
+        return jsonify({"summary": "Could not summarize.", "emoji": "✨"}), 500
 
-# NEW: This endpoint calls OpenAI directly to get suggested replies
+# This endpoint calls OpenAI directly to get suggested replies
 @app.route('/api/suggestions', methods=['POST'])
 def get_suggestions():
     """
@@ -97,10 +129,9 @@ def get_suggestions():
 
     data = request.json
     messages = data.get('messages', [])
-    if len(messages) < 2: # Don't generate suggestions at the very start
+    if len(messages) < 2:
         return jsonify({"suggestions": []})
 
-    # Define a "tool" for the OpenAI API to force it to return structured JSON
     tools = [{
         "type": "function",
         "function": {
@@ -121,9 +152,7 @@ def get_suggestions():
     }]
 
     try:
-        # Call OpenAI API with a tool choice to force it to generate suggestions
         response = openai.chat.completions.create(
-            # --- CHANGE: Switched from gpt-4o to gpt-3.5-turbo for broader compatibility ---
             model="gpt-3.5-turbo",
             messages=messages,
             tools=tools,
@@ -135,7 +164,6 @@ def get_suggestions():
         if choice.tool_calls:
             tool_call = choice.tool_calls[0]
             if tool_call.function.name == "show_suggested_replies":
-                # The arguments are a JSON string, so we need to parse them
                 arguments = json.loads(tool_call.function.arguments)
                 suggestions = arguments.get('replies', [])
         
