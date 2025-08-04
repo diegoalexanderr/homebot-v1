@@ -20,8 +20,8 @@ def index():
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """
-    Receives chat messages and a session ID from the frontend,
-    and forwards them to the n8n webhook for processing.
+    Receives chat messages from the frontend, extracts the latest user message,
+    and forwards it to the n8n webhook in a simplified format.
     """
     if not N8N_WEBHOOK_URL or not OPENAI_API_KEY:
         return jsonify({"error": "N8N_WEBHOOK_URL or OPENAI_API_KEY environment variable not set."}), 500
@@ -33,12 +33,14 @@ def chat():
     if not messages:
         return jsonify({"error": "No messages provided."}), 400
 
-    # The payload that will be sent to your n8n workflow
+    # Extract the last message content to be used as 'chatInput'
+    last_message = messages[-1].get('content', '')
+
+    # The simplified payload that will be sent to your n8n workflow
     n8n_payload = {
-        "task": "chat",
+        "chatInput": last_message,
         "sessionId": session_id,
-        "messages": messages,
-        "api_key": OPENAI_API_KEY
+        "api_key": OPENAI_API_KEY # Securely passing the key
     }
 
     try:
@@ -49,7 +51,7 @@ def chat():
         # n8n is expected to return a JSON object with 'reply' and 'suggestions'
         n8n_response_data = response.json()
         
-        # Handle cases where n8n might wrap the response
+        # Handle cases where n8n might wrap the response in a 'json' key
         final_data = n8n_response_data.get('json', n8n_response_data)
 
         return jsonify(final_data)
