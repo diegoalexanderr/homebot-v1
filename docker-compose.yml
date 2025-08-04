@@ -3,11 +3,12 @@ services:
   flask:
     build: .
     container_name: flask_chatbot
+    network_mode: "host"  # <-- ADD THIS LINE
     environment:
-      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-    expose:
-      - "5000"
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    # Note: 'expose' is not needed in host network mode
+  
   nginx:
     image: nginx:latest
     container_name: nginx_chatbot
@@ -15,6 +16,6 @@ services:
       - "8080:80"
     volumes:
       - /etc/docker-configs/nginx/my-nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./static:/app/static
+    # The depends_on is not strictly necessary but can be helpful
     depends_on:
       - flask
