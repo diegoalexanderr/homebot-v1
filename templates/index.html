@@ -514,9 +514,11 @@
                 if (!response.ok) throw new Error(`n8n API error: ${response.statusText}`);
                 
                 const result = await response.json();
+                
+                const botReply = result.reply || result.output;
 
-                if (result.reply) {
-                    addMessage(result.reply, 'assistant', sessionId);
+                if (botReply) {
+                    addMessage(botReply, 'assistant', sessionId);
                     // After adding the main reply, fetch suggestions
                     fetchSuggestions(sessionId);
                 } else {
@@ -587,6 +589,13 @@
 
         newConversationBtn.onclick = startNewSession;
         sidebarToggle.onclick = () => sidebar.classList.toggle('is-open');
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+        });
 
         input.addEventListener('input', adjustTextareaHeight);
         function adjustTextareaHeight() {
