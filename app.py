@@ -123,7 +123,8 @@ def get_suggestions():
     try:
         # Call OpenAI API with a tool choice to force it to generate suggestions
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            # --- CHANGE: Switched from gpt-4o to gpt-3.5-turbo for broader compatibility ---
+            model="gpt-3.5-turbo",
             messages=messages,
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "show_suggested_replies"}}
