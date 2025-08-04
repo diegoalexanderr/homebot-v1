@@ -327,7 +327,7 @@
                 transform: none;
                 box-shadow: none;
                 width: 260px;
-                transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
+                transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, transform 0.3s ease-in-out;
             }
 
             .sidebar:not(.is-open) {
@@ -335,6 +335,7 @@
                 padding-left: 0;
                 padding-right: 0;
                 overflow: hidden;
+                border-right: none;
             }
 
             #sidebarOpenBtn {
@@ -679,11 +680,18 @@
         }
 
         // --- Initialization ---
-        window.onload = () => {
-            // On desktop, the sidebar should start open.
-            if (window.innerWidth >= 768) {
+        const handleResize = () => {
+            if (window.innerWidth < 768) {
+                sidebar.classList.remove('is-open');
+            } else {
                 sidebar.classList.add('is-open');
             }
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        window.onload = () => {
+            handleResize(); // Set initial state
             startNewSession();
             adjustTextareaHeight();
         };
