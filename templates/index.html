@@ -472,22 +472,27 @@
         async function getAiResponse(sessionId) {
             showTypingIndicator();
             try {
+                // First, get the main reply from the n8n webhook
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                    body: JSON.stringify({ 
+                        messages: sessions[sessionId].messages,
+                        sessionId: sessionId 
+                    })
                 });
 
                 hideTypingIndicator();
-                if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+                if (!response.ok) throw new Error(`n8n API error: ${response.statusText}`);
                 
                 const result = await response.json();
 
                 if (result.reply) {
                     addMessage(result.reply, 'assistant', sessionId);
-                }
-                if (result.suggestions) {
-                    renderSuggestions(result.suggestions);
+                    // After adding the main reply, fetch suggestions
+                    fetchSuggestions(sessionId);
+                } else {
+                     addMessage("Sorry, I didn't get a valid response from the workflow.", 'assistant', sessionId);
                 }
                 
                 updateSessionSummary(sessionId);
@@ -497,6 +502,24 @@
                 addMessage("Sorry, something went wrong. Please check the server logs and try again.", 'assistant', sessionId);
             } finally {
                 sendBtn.disabled = false;
+            }
+        }
+
+        // NEW: Function to fetch suggestions directly from our backend
+        async function fetchSuggestions(sessionId) {
+            try {
+                const response = await fetch('/api/suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                });
+                if (!response.ok) return; // Fail silently if suggestions can't be fetched
+                const result = await response.json();
+                if (result.suggestions) {
+                    renderSuggestions(result.suggestions);
+                }
+            } catch (error) {
+                console.error("Suggestion fetch failed:", error);
             }
         }
 
