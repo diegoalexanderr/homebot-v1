@@ -607,12 +607,51 @@
         function copyToClipboard(text, element) {
             if (element.classList.contains('copied')) return; // Prevent re-triggering animation
 
-            navigator.clipboard.writeText(text).then(() => {
-                element.classList.add('copied');
-                setTimeout(() => {
-                    element.classList.remove('copied');
-                }, 1500); // Duration of the animation
-            });
+            // --- ROBUST CLIPBOARD FUNCTION ---
+            // Try the modern Clipboard API first
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    element.classList.add('copied');
+                    setTimeout(() => {
+                        element.classList.remove('copied');
+                    }, 1500);
+                }).catch(err => {
+                    console.error('Async clipboard copy failed:', err);
+                    // Fallback for cases where permission is denied
+                    fallbackCopyTextToClipboard(text, element);
+                });
+            } else {
+                // Fallback for older browsers or non-secure contexts
+                fallbackCopyTextToClipboard(text, element);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text, element) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            
+            // Avoid scrolling to bottom
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    element.classList.add('copied');
+                    setTimeout(() => {
+                        element.classList.remove('copied');
+                    }, 1500);
+                }
+            } catch (err) {
+                console.error('Fallback copy command was unsuccessful:', err);
+            }
+
+            document.body.removeChild(textArea);
         }
 
         // --- Initialization ---
