@@ -3,23 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HomeBot</title>
+    <title>HomeBot with OpenAI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         /* --- Base Styles & Resets --- */
         :root {
-            --primary-color: #6366f1;
-            --primary-dark: #5e35b1;
-            --background-light: #f7f7fc;
-            --border-light: #ece9f7;
+            --primary-color: #10a37f; /* OpenAI Green */
+            --primary-dark: #0d8265;
+            --background-light: #f9f9f9;
+            --border-light: #e5e5e5;
             --text-dark: #3a3a3a;
             --text-light: #fff;
             --user-bubble-bg: #e0f7fa;
             --user-bubble-text: #00796b;
-            --bot-bubble-bg: #ede7f6;
-            --bot-bubble-text: #5e35b1;
+            --bot-bubble-bg: #f0f4f9;
+            --bot-bubble-text: #333;
         }
 
         body, html {
@@ -29,7 +27,7 @@
             background-color: var(--background-light);
             height: 100%;
             width: 100%;
-            overflow: hidden; /* Prevent scrolling on the body */
+            overflow: hidden;
         }
 
         *, *::before, *::after {
@@ -39,8 +37,8 @@
         /* --- Main Layout --- */
         .main-wrapper {
             display: flex;
-            height: 100dvh; /* Dynamic viewport height for mobile */
-            height: 100%;   /* Fallback */
+            height: 100dvh;
+            height: 100%;
             width: 100%;
             position: relative;
             overflow: hidden;
@@ -53,19 +51,19 @@
             left: 0;
             bottom: 0;
             width: 260px;
-            background: var(--background-light);
+            background: #ffffff;
             border-right: 1px solid var(--border-light);
             display: flex;
             flex-direction: column;
             padding: 16px;
             z-index: 200;
-            transform: translateX(-100%); /* Hidden by default on mobile */
+            transform: translateX(-100%);
             transition: transform 0.3s ease-in-out;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
 
         .sidebar.is-open {
-            transform: translateX(0); /* Visible when toggled */
+            transform: translateX(0);
         }
 
         .sidebar-header {
@@ -80,7 +78,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            background: var(--primary-color);
             color: var(--text-light);
             border: none;
             border-radius: 8px;
@@ -91,8 +89,7 @@
             transition: all 0.2s ease;
         }
         #newConversation:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+            background: var(--primary-dark);
         }
 
         .session-list-container {
@@ -100,7 +97,7 @@
             font-weight: 600;
             color: #888;
             overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
+            -webkit-overflow-scrolling: touch;
         }
         
         #sessionList {
@@ -161,6 +158,7 @@
             border: 1px solid var(--border-light);
             border-radius: 8px;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
@@ -177,14 +175,14 @@
             height: 2px;
             background: var(--primary-color);
             border-radius: 2px;
-            margin: 3px 0;
+            margin: 2px 0;
         }
 
         .chat-messages {
             flex-grow: 1;
             padding: 16px;
             overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
+            -webkit-overflow-scrolling: touch;
             display: flex;
             flex-direction: column;
             gap: 16px;
@@ -203,19 +201,14 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .message.user {
-            align-self: flex-end;
-            flex-direction: row-reverse;
-        }
-        .message.bot {
-            align-self: flex-start;
-        }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message.assistant { align-self: flex-start; }
         
         .avatar {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            background: var(--primary-color);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -223,13 +216,8 @@
             cursor: pointer;
             transition: transform 0.2s ease;
         }
-        .avatar:hover {
-            transform: scale(1.1);
-        }
-        .avatar svg {
-            width: 20px;
-            height: 20px;
-        }
+        .avatar:hover { transform: scale(1.1); }
+        .avatar svg { width: 22px; height: 22px; }
 
         .bubble {
             background: #f3f4f6;
@@ -246,133 +234,77 @@
             color: var(--user-bubble-text);
             border-radius: 12px 12px 2px 12px;
         }
-        .message.bot .bubble {
+        .message.assistant .bubble {
             background: var(--bot-bubble-bg);
             color: var(--bot-bubble-text);
             border-radius: 12px 12px 12px 2px;
         }
+
+        /* Typing Indicator */
+        .typing-indicator { display: flex; align-items: center; gap: 5px; }
+        .typing-indicator span {
+            height: 8px; width: 8px; background-color: var(--primary-color);
+            border-radius: 50%; display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
         
-        /* --- Chat Input --- */
-        .chat-input-form {
-            display: flex;
-            align-items: flex-start;
-            padding: 12px;
-            border-top: 1px solid var(--border-light);
+        /* --- Chat Input & Suggestions --- */
+        .chat-input-area {
+            flex-shrink: 0;
             background: var(--background-light);
-            gap: 12px;
-            flex-shrink: 0;
+            border-top: 1px solid var(--border-light);
         }
-
-        #input {
-            flex-grow: 1;
-            padding: 12px 18px;
-            border-radius: 22px;
-            border: 1px solid #e0e0e0;
-            font-size: 1rem;
-            outline: none;
-            resize: none;
-            min-height: 44px;
-            max-height: 150px;
-            line-height: 1.5;
-            background: #fff;
-            transition: border-color 0.2s;
+        #reply-suggestions {
+            display: flex; gap: 8px; padding: 8px 12px 4px;
+            flex-wrap: wrap; transition: opacity 0.3s ease;
         }
-        #input:focus {
-            border-color: var(--primary-color);
-        }
-
-        #send {
-            background: var(--primary-color);
-            border: none;
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+        .suggestion-btn {
+            background: #fff; border: 1px solid #ddd; border-radius: 16px;
+            padding: 6px 12px; font-size: 0.9rem; cursor: pointer;
             transition: all 0.2s ease;
         }
-        #send:hover {
-            transform: scale(1.1);
-            box-shadow: 0 2px 8px rgba(99,102,241,0.2);
+        .suggestion-btn:hover { background: var(--bot-bubble-bg); border-color: var(--primary-color); }
+        .chat-input-form {
+            display: flex; align-items: flex-start; padding: 8px 12px 12px;
+            gap: 12px;
         }
-        #send:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        #input {
+            flex-grow: 1; padding: 12px 18px; border-radius: 22px;
+            border: 1px solid #e0e0e0; font-size: 1rem; outline: none;
+            resize: none; min-height: 44px; max-height: 150px;
+            line-height: 1.5; background: #fff; transition: border-color 0.2s;
         }
-        #send svg {
-            width: 20px;
-            height: 20px;
-            stroke: var(--text-light);
-            stroke-width: 2;
+        #input:focus { border-color: var(--primary-color); }
+        #send {
+            background: var(--primary-color); border: none; border-radius: 50%;
+            width: 44px; height: 44px; flex-shrink: 0; display: flex;
+            align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.2s ease;
         }
-
-        /* --- Rich Content (Tables/Charts) --- */
-        .chat-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 12px 0;
-            font-size: 0.9rem;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .chat-table th, .chat-table td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-light);
-        }
-        .chat-table th {
-            background: var(--primary-color);
-            color: var(--text-light);
-            font-weight: 600;
-        }
-        .chat-table tr:last-child td {
-            border-bottom: none;
-        }
-        .chat-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-
-        .bubble .echarts, .bubble canvas {
-            display: block;
-            margin: 16px auto 0 auto;
-            max-width: 100%;
-            height: 300px;
-        }
+        #send:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(16, 163, 127, 0.2); }
+        #send:disabled { background: #ccc; cursor: not-allowed; }
+        #send svg { width: 20px; height: 20px; stroke: var(--text-light); stroke-width: 2; }
         
         /* --- Desktop & Tablet Styles --- */
         @media (min-width: 768px) {
-            .sidebar {
-                position: static; /* No longer an overlay */
-                transform: translateX(0); /* Always visible */
-                box-shadow: none;
-                width: 260px;
-                padding: 24px;
-            }
-            .sidebar-toggle {
-                display: none; /* Hide toggle on larger screens */
-            }
-            .chat-header {
-                padding: 16px 24px;
-                font-size: 1.5rem;
-            }
-            .chat-messages {
-                padding: 24px;
-            }
-            .chat-input-form {
-                padding: 16px 24px;
-            }
-            .message {
-                max-width: 75%;
-            }
+            .sidebar { position: static; transform: translateX(0); box-shadow: none; width: 260px; padding: 24px; }
+            .sidebar-toggle { display: none; }
+            .chat-header { padding: 16px 24px; font-size: 1.5rem; }
+            .chat-messages { padding: 24px; }
+            #reply-suggestions { padding: 8px 24px 4px; }
+            .chat-input-form { padding: 8px 24px 16px; }
+            .message { max-width: 75%; }
         }
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <!-- Sidebar for session history -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <button id="newConversation">
@@ -388,7 +320,6 @@
             </div>
         </div>
 
-        <!-- Main chat interface -->
         <div class="main-chat">
             <div class="chat-header">
                 <div class="sidebar-toggle" id="sidebarToggle">
@@ -396,19 +327,20 @@
                     <div class="line"></div>
                     <div class="line"></div>
                 </div>
-                HomeBot
+                HomeBot (OpenAI)
             </div>
-            <div class="chat-messages" id="messages">
-                <!-- Messages will be injected here -->
+            <div class="chat-messages" id="messages"></div>
+            <div class="chat-input-area">
+                <div id="reply-suggestions"></div>
+                <form class="chat-input-form" id="chatForm" autocomplete="off">
+                    <textarea id="input" placeholder="Ask away..." autofocus rows="1"></textarea>
+                    <button type="submit" id="send" aria-label="Send">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </form>
             </div>
-            <form class="chat-input-form" id="chatForm" autocomplete="off">
-                <textarea id="input" placeholder="Ask away..." autofocus rows="1"></textarea>
-                <button type="submit" id="send" aria-label="Send">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-            </form>
         </div>
     </div>
 
@@ -419,88 +351,96 @@
         const newConversationBtn = document.getElementById('newConversation');
         const sessionList = document.getElementById('sessionList');
         const messagesContainer = document.getElementById('messages');
+        const suggestionsContainer = document.getElementById('reply-suggestions');
         const chatForm = document.getElementById('chatForm');
         const input = document.getElementById('input');
         const sendBtn = document.getElementById('send');
 
         // --- State Management ---
         let currentSessionId = null;
-        let sessions = {}; // Store sessions by ID: { id: { summary: '...', messages: [...] }}
+        let sessions = {};
+        let isSummarizing = false;
+        let openAiApiKey = null;
 
+        // --- OpenAI API Configuration ---
+        const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+        
         // --- Core Functions ---
-        function generateSessionId() {
-            return 'sess_' + Date.now();
-        }
+        function generateSessionId() { return 'sess_' + Date.now(); }
 
         function startNewSession() {
             currentSessionId = generateSessionId();
             messagesContainer.innerHTML = '';
+            suggestionsContainer.innerHTML = '';
             input.value = '';
             input.focus();
-            renderSessionList(); // To deselect any active session
+            renderSessionList();
         }
 
         // --- Message Handling ---
-        function addMessage(text, sender, sessionId) {
+        function addMessage(text, role, sessionId) {
             if (!sessions[sessionId]) {
                 sessions[sessionId] = { summary: 'New Chat', messages: [] };
             }
-            sessions[sessionId].messages.push({ sender, text });
-
-            // Update summary for the first user message
-            if (sender === 'user' && sessions[sessionId].messages.length === 1) {
-                sessions[sessionId].summary = text.length > 30 ? text.substring(0, 27) + '...' : text;
-            }
-
+            const message = { role, content: text };
+            sessions[sessionId].messages.push(message);
             renderSessionList();
-            
-            // Only render the message if it belongs to the currently active session
             if (sessionId === currentSessionId) {
-                const msgDiv = document.createElement('div');
-                msgDiv.className = `message ${sender}`;
-
-                // Add avatar for bot messages
-                if (sender === 'bot') {
-                    const avatar = document.createElement('div');
-                    avatar.className = 'avatar';
-                    avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12ZM12 15C8.13401 15 5 18.134 5 22H19C19 18.134 15.866 15 12 15Z" fill="white"/></svg>`;
-                    avatar.title = "Click to copy response";
-                    avatar.onclick = () => copyToClipboard(text, avatar);
-                    msgDiv.appendChild(avatar);
-                }
-
-                const bubble = document.createElement('div');
-                bubble.className = 'bubble';
-
-                // Sanitize and render content
-                // This is a simple check; for production, use a robust library like DOMPurify
-                if (/<(canvas|div class="echarts"|table)/.test(text)) {
-                    bubble.innerHTML = text;
-                } else {
-                    bubble.textContent = text;
-                }
-                
-                msgDiv.appendChild(bubble);
-                messagesContainer.appendChild(msgDiv);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                // Render charts if any
-                renderChartsInBubble(bubble);
+                renderSingleMessage(message);
             }
+        }
+
+        function renderSingleMessage(message) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${message.role}`;
+            if (message.role === 'assistant') {
+                const avatar = document.createElement('div');
+                avatar.className = 'avatar';
+                avatar.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41"><path fill="#fff" d="M35.5 11c-3.9-3.9-9-6-14.5-6S10.4 7.1 6.5 11c-3.9 3.9-6 9-6 14.5s2.1 10.6 6 14.5C10.4 43.9 15.5 46 21 46s10.6-2.1 14.5-6c3.9-3.9 6-9 6-14.5s-2.1-10.6-6-14.5zM21 43c-3.6 0-7-1-10-2.9-1.8-1.1-3.4-2.6-4.8-4.2-2.9-3.2-4.7-7.3-4.7-11.9s1.8-8.7 4.7-11.9c1.4-1.6 3-3.1 4.8-4.2 3-1.8 6.4-2.9 10-2.9s7 1 10 2.9c1.8 1.1 3.4 2.6 4.8 4.2 2.9 3.2 4.7 7.3 4.7 11.9s-1.8 8.7-4.7 11.9c-1.4 1.6-3 3.1-4.8 4.2-3 1.8-6.4 2.9-10 2.9z"></path><path fill="#fff" d="M12.9 15.3c-1-1.6-2.2-3.1-3.5-4.5.9-.9 1.9-1.8 2.9-2.6 1.4.9 2.8 1.9 4.1 3-1.2 1.5-2.4 3-3.5 4.1zM28.1 15.3c1-1.6 2.2-3.1 3.5-4.5-.9-.9-1.9-1.8-2.9-2.6-1.4.9-2.8 1.9-4.1 3 1.2 1.5 2.4 3 3.5 4.1zM11.3 29.5c-2.2-1.3-4.2-2.9-5.8-4.8.9-.4 1.8-.8 2.7-1.2 1.3 2.2 2.9 4.2 4.8 5.8-.8.5-1.7.9-2.7 1.2zM29.7 29.5c2.2-1.3 4.2-2.9 5.8-4.8-.9-.4-1.8-.8-2.7-1.2-1.3 2.2-2.9 4.2-4.8 5.8.8.5 1.7.9 2.7 1.2zM21 13c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 13c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5z"></path></svg>`;
+                avatar.title = "Click to copy response";
+                avatar.onclick = () => copyToClipboard(message.content, avatar);
+                msgDiv.appendChild(avatar);
+            }
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = message.content;
+            msgDiv.appendChild(bubble);
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            suggestionsContainer.innerHTML = '';
+            const typingMsgDiv = document.createElement('div');
+            typingMsgDiv.className = 'message assistant';
+            typingMsgDiv.id = 'typing-indicator';
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41"><path fill="#fff" d="M35.5 11c-3.9-3.9-9-6-14.5-6S10.4 7.1 6.5 11c-3.9 3.9-6 9-6 14.5s2.1 10.6 6 14.5C10.4 43.9 15.5 46 21 46s10.6-2.1 14.5-6c3.9-3.9 6-9 6-14.5s-2.1-10.6-6-14.5zM21 43c-3.6 0-7-1-10-2.9-1.8-1.1-3.4-2.6-4.8-4.2-2.9-3.2-4.7-7.3-4.7-11.9s1.8-8.7 4.7-11.9c1.4-1.6 3-3.1 4.8-4.2 3-1.8 6.4-2.9 10-2.9s7 1 10 2.9c1.8 1.1 3.4 2.6 4.8 4.2 2.9 3.2 4.7 7.3 4.7 11.9s-1.8 8.7-4.7 11.9c-1.4 1.6-3 3.1-4.8 4.2-3 1.8-6.4 2.9-10 2.9z"></path><path fill="#fff" d="M12.9 15.3c-1-1.6-2.2-3.1-3.5-4.5.9-.9 1.9-1.8 2.9-2.6 1.4.9 2.8 1.9 4.1 3-1.2 1.5-2.4 3-3.5 4.1zM28.1 15.3c1-1.6 2.2-3.1 3.5-4.5-.9-.9-1.9-1.8-2.9-2.6-1.4.9-2.8 1.9-4.1 3 1.2 1.5 2.4 3 3.5 4.1zM11.3 29.5c-2.2-1.3-4.2-2.9-5.8-4.8.9-.4 1.8-.8 2.7-1.2 1.3 2.2 2.9 4.2 4.8 5.8-.8.5-1.7.9-2.7 1.2zM29.7 29.5c2.2-1.3 4.2-2.9 5.8-4.8-.9-.4-1.8-.8-2.7-1.2-1.3 2.2-2.9 4.2-4.8 5.8.8.5 1.7.9 2.7 1.2zM21 13c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 13c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5z"></path></svg>`;
+            typingMsgDiv.appendChild(avatar);
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            typingMsgDiv.appendChild(bubble);
+            messagesContainer.appendChild(typingMsgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
         }
 
         // --- UI Rendering ---
         function renderSessionList() {
             sessionList.innerHTML = '';
-            Object.keys(sessions).forEach(id => {
+            Object.keys(sessions).reverse().forEach(id => {
                 const session = sessions[id];
                 const btn = document.createElement('button');
                 btn.className = 'session-btn';
                 btn.textContent = session.summary;
                 btn.dataset.sessionId = id;
-                if (id === currentSessionId) {
-                    btn.classList.add('selected');
-                }
+                if (id === currentSessionId) btn.classList.add('selected');
                 btn.onclick = () => switchSession(id);
                 sessionList.appendChild(btn);
             });
@@ -508,37 +448,143 @@
 
         function switchSession(sessionId) {
             currentSessionId = sessionId;
-            messagesContainer.innerHTML = ''; // Clear current messages
+            messagesContainer.innerHTML = '';
+            suggestionsContainer.innerHTML = '';
             const session = sessions[sessionId];
-            if (session) {
-                session.messages.forEach(msg => {
-                    // Re-add messages without adding them to the session log again
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = `message ${msg.sender}`;
-                    if (msg.sender === 'bot') {
-                        const avatar = document.createElement('div');
-                        avatar.className = 'avatar';
-                        avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12ZM12 15C8.13401 15 5 18.134 5 22H19C19 18.134 15.866 15 12 15Z" fill="white"/></svg>`;
-                        avatar.title = "Click to copy response";
-                        avatar.onclick = () => copyToClipboard(msg.text, avatar);
-                        msgDiv.appendChild(avatar);
-                    }
-                    const bubble = document.createElement('div');
-                    bubble.className = 'bubble';
-                    if (/<(canvas|div class="echarts"|table)/.test(msg.text)) {
-                        bubble.innerHTML = msg.text;
-                    } else {
-                        bubble.textContent = msg.text;
-                    }
-                    msgDiv.appendChild(bubble);
-                    messagesContainer.appendChild(msgDiv);
-                    renderChartsInBubble(bubble);
-                });
-            }
+            if (session) session.messages.forEach(msg => renderSingleMessage(msg));
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            renderSessionList(); // To update the 'selected' class
-            if (window.innerWidth < 768) {
-                sidebar.classList.remove('is-open'); // Close sidebar on mobile after selection
+            renderSessionList();
+            if (window.innerWidth < 768) sidebar.classList.remove('is-open');
+        }
+
+        function renderSuggestions(suggestions) {
+            suggestionsContainer.innerHTML = '';
+            suggestions.forEach(text => {
+                const btn = document.createElement('button');
+                btn.className = 'suggestion-btn';
+                btn.textContent = text;
+                btn.onclick = () => {
+                    input.value = text;
+                    chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+                };
+                suggestionsContainer.appendChild(btn);
+            });
+        }
+
+        // --- OpenAI API Calls ---
+        async function getAiResponse(sessionId) {
+            if (!openAiApiKey) {
+                alert("OpenAI API Key is not set.");
+                sendBtn.disabled = false;
+                return;
+            }
+            showTypingIndicator();
+
+            const payload = {
+                model: "gpt-4o",
+                messages: sessions[sessionId].messages,
+                tools: [{
+                    type: "function",
+                    function: {
+                        name: "show_suggested_replies",
+                        description: "Show the user a few short suggested replies to continue the conversation.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                replies: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                    description: "An array of 3 short, relevant, and engaging replies."
+                                }
+                            },
+                            required: ["replies"]
+                        }
+                    }
+                }],
+                tool_choice: { type: "function", function: { name: "show_suggested_replies" } }
+            };
+
+            try {
+                const response = await fetch(OPENAI_API_URL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${openAiApiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+                
+                const result = await response.json();
+                const choice = result.choices[0].message;
+
+                // First, add the main text response from the assistant
+                const mainResponsePayload = {
+                    model: "gpt-4o",
+                    messages: [...sessions[sessionId].messages, { role: "assistant", content: "..." }] // Add placeholder for context
+                };
+                mainResponsePayload.messages[mainResponsePayload.messages.length - 1].content = "Please provide a conversational response to the last user message.";
+                
+                const mainResponse = await fetch(OPENAI_API_URL, {
+                     method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${openAiApiKey}`
+                    },
+                    body: JSON.stringify({model: "gpt-4o", messages: sessions[sessionId].messages})
+                });
+                const mainResult = await mainResponse.json();
+                hideTypingIndicator();
+                addMessage(mainResult.choices[0].message.content, 'assistant', sessionId);
+
+                // Then, check for tool call for suggested replies
+                if (choice.tool_calls) {
+                    const toolCall = choice.tool_calls[0];
+                    if (toolCall.function.name === "show_suggested_replies") {
+                        const args = JSON.parse(toolCall.function.arguments);
+                        renderSuggestions(args.replies);
+                    }
+                }
+                
+                updateSessionSummary(sessionId);
+            } catch (error) {
+                console.error("OpenAI API call failed:", error);
+                hideTypingIndicator();
+                addMessage("Sorry, I'm having trouble connecting. Please check your API key and try again.", 'assistant', sessionId);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function updateSessionSummary(sessionId) {
+            if (isSummarizing || sessions[sessionId].messages.length < 2) return;
+            isSummarizing = true;
+
+            const summaryPrompt = [...sessions[sessionId].messages, {
+                role: "user",
+                content: "Summarize our conversation so far in 5 words or less."
+            }];
+            
+            try {
+                const response = await fetch(OPENAI_API_URL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${openAiApiKey}`
+                    },
+                    body: JSON.stringify({ model: "gpt-4o", messages: summaryPrompt })
+                });
+                const result = await response.json();
+                if (result.choices && result.choices.length > 0) {
+                    const summary = result.choices[0].message.content.trim().replace(/"/g, '');
+                    sessions[sessionId].summary = `✨ ${summary}`;
+                    renderSessionList();
+                }
+            } catch (error) {
+                console.error("Summary generation failed:", error);
+            } finally {
+                isSummarizing = false;
             }
         }
 
@@ -547,24 +593,17 @@
             e.preventDefault();
             const text = input.value.trim();
             if (!text) return;
-
+            suggestionsContainer.innerHTML = '';
             addMessage(text, 'user', currentSessionId);
             input.value = '';
             adjustTextareaHeight();
             sendBtn.disabled = true;
-
-            // Simulate bot response
-            setTimeout(() => {
-                const botReply = `This is a simulated response to: "${text}". In a real app, this would come from a server. Here's a table example: <table class="chat-table"><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody><tr><td>Data 1</td><td>123</td></tr><tr><td>Data 2</td><td>456</td></tr></tbody></table>`;
-                addMessage(botReply, 'bot', currentSessionId);
-                sendBtn.disabled = false;
-            }, 1000);
+            await getAiResponse(currentSessionId);
         };
 
         newConversationBtn.onclick = startNewSession;
         sidebarToggle.onclick = () => sidebar.classList.toggle('is-open');
 
-        // Auto-resize textarea
         input.addEventListener('input', adjustTextareaHeight);
         function adjustTextareaHeight() {
             input.style.height = 'auto';
@@ -574,56 +613,20 @@
         // --- Utility Functions ---
         function copyToClipboard(text, element) {
             navigator.clipboard.writeText(text).then(() => {
-                element.style.background = '#4caf50'; // Green flash for success
-                setTimeout(() => {
-                    element.style.background = '';
-                }, 800);
-            }).catch(err => {
-                console.error('Failed to copy text: ', err);
-                // Fallback for older browsers
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    element.style.background = '#4caf50';
-                    setTimeout(() => { element.style.background = ''; }, 800);
-                } catch (err) {
-                    console.error('Fallback copy failed: ', err);
-                }
-                document.body.removeChild(textArea);
-            });
-        }
-
-        function renderChartsInBubble(bubble) {
-            // ECharts auto-render
-            const echartsDivs = bubble.querySelectorAll('div.echarts');
-            echartsDivs.forEach((div) => {
-                const script = div.nextElementSibling;
-                if (script && script.tagName === 'SCRIPT' && /echarts/.test(script.textContent)) {
-                    try {
-                        // A safer eval by wrapping in a function
-                        new Function(script.textContent)();
-                    } catch (e) { console.error('ECharts script error:', e); }
-                }
-            });
-
-            // Chart.js auto-render
-            const canvases = bubble.querySelectorAll('canvas[id]');
-            canvases.forEach(canvas => {
-                const script = canvas.nextElementSibling;
-                if (script && script.tagName === 'SCRIPT' && /new Chart/.test(script.textContent)) {
-                    try {
-                        new Function('document', script.textContent)(document);
-                    } catch (e) { console.error('Chart.js script error:', e); }
-                }
+                element.style.background = '#4caf50';
+                setTimeout(() => { element.style.background = 'var(--primary-color)'; }, 800);
             });
         }
 
         // --- Initialization ---
         window.onload = () => {
+            openAiApiKey = prompt("Please enter your OpenAI API Key:");
+            if (!openAiApiKey) {
+                alert("API Key not provided. The chat will be disabled.");
+                input.disabled = true;
+                sendBtn.disabled = true;
+                input.placeholder = "Please refresh and enter an API key to begin.";
+            }
             startNewSession();
             adjustTextareaHeight();
         };
