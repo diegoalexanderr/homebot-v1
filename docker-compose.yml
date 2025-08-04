@@ -4,8 +4,8 @@ services:
     build: .
     container_name: flask_chatbot
     environment:
-      - N8N_WEBHOOK_URL=WEBHOOKURLHERE
-      - OPENAI_API_KEY=APIKEYHERE
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     expose:
       - "5000"
   nginx:
