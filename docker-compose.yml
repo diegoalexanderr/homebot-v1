@@ -14,7 +14,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - /etc/docker-configs/nginx/my-nginx.conf:/etc/nginx/conf.d/default.conf
       - ./static:/app/static
     depends_on:
       - flask
