@@ -27,7 +27,7 @@ def send_message():
     if isinstance(data, list) and len(data) > 0:
         data = data[0]
 
-    user_message = data.get('chatInput')
+    user_message = data.get('message')
 
     if not user_message:
         return jsonify({'reply': 'No message received.'}), 400
