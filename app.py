@@ -45,7 +45,7 @@ def send_message():
         bot_reply = response.json().get('output', 'No reply from webhook.')
         
         # Return the bot's reply and the new session ID to the client
-        return jsonify({'reply': bot_reply, 'sessionid': session_id})
+        return jsonify({'reply': bot_reply, 'sessionID': session_id})
 
     except requests.exceptions.RequestException as e:
         # Handle any errors during the webhook request
