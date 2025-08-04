@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeBot with OpenAI</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- NEW: Added the marked.js library to parse Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         /* --- Base Styles & Resets --- */
         :root {
@@ -268,6 +270,19 @@
             color: var(--bot-bubble-text);
             border-radius: 12px 12px 12px 2px;
         }
+        
+        /* NEW: Styles for rendered Markdown content */
+        .bubble ul {
+            padding-left: 20px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .bubble p {
+            margin: 0;
+        }
+        .bubble p:not(:last-child) {
+            margin-bottom: 12px;
+        }
 
         /* Typing Indicator */
         .typing-indicator { display: flex; align-items: center; gap: 5px; }
@@ -452,7 +467,10 @@
             }
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
-            bubble.textContent = message.content;
+            
+            // NEW: Use marked.parse to render Markdown content
+            bubble.innerHTML = marked.parse(message.content);
+
             msgDiv.appendChild(bubble);
             messagesContainer.appendChild(msgDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -699,4 +717,4 @@
 
     </script>
 </body>
-</ht
+</html>
