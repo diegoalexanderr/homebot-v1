@@ -1,6 +1,7 @@
 import os
 import requests
 import uuid
+import openai
 from flask import Flask, request, jsonify, render_template
 
 # Initialize the Flask application
@@ -8,6 +9,11 @@ app = Flask(__name__, template_folder='templates')
 
 # Get the necessary variables from the environment
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# Configure the OpenAI library with the API key
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
 
 # This is the main route that will serve your index.html file
 @app.route('/')
@@ -36,7 +42,6 @@ def chat():
     last_message = messages[-1].get('content', '')
 
     # The simplified payload that will be sent to your n8n workflow.
-    # The API key is no longer passed from here.
     n8n_payload = {
         "chatInput": last_message,
         "sessionId": session_id,
@@ -54,13 +59,11 @@ def chat():
         data_to_process = n8n_response_data.get('json', n8n_response_data)
 
         # Standardize the response for the frontend.
-        # The frontend expects a 'reply' key, but n8n might send 'output'.
         final_data = {
             "reply": data_to_process.get('reply') or data_to_process.get('output'),
             "suggestions": data_to_process.get('suggestions', [])
         }
 
-        # If there's no valid reply content, set a default message.
         if not final_data["reply"]:
             final_data["reply"] = "Sorry, I didn't get a valid response from the workflow."
 
@@ -73,49 +76,36 @@ def chat():
         print(f"An unexpected error occurred: {e}")
         return jsonify({"error": "An internal server error occurred."}), 500
 
-# This endpoint handles the summary generation by calling the n8n webhook
+# This endpoint now calls OpenAI directly for summarization
 @app.route('/api/summarize', methods=['POST'])
 def summarize():
     """
-    Receives messages for summarization and forwards them to the n8n webhook
-    with a 'summarize' task flag.
+    Summarizes a chat session by calling the OpenAI API directly.
     """
-    if not N8N_WEBHOOK_URL:
-        return jsonify({"error": "N8N_WEBHOOK_URL environment variable not set."}), 500
+    if not OPENAI_API_KEY:
+        return jsonify({"summary": "OpenAI API key not configured."}), 500
     
     data = request.json
-    messages = data.get('messages')
+    messages = data.get('messages', [])
     if not messages:
-        return jsonify({"error": "No messages provided for summary."}), 400
+        return jsonify({"summary": "No messages to summarize."}), 400
         
-    # The payload for the summarization task.
-    # The API key is no longer passed from here.
-    n8n_payload = {
-        "task": "summarize",
-        "messages": messages,
-    }
+    # Construct the prompt for the summarization
+    prompt_messages = messages + [{"role": "system", "content": "Summarize the following chat session in 5 words or less for a sidebar label."}]
     
     try:
-        # Forward the request to your n8n webhook
-        response = requests.post(N8N_WEBHOOK_URL, json=n8n_payload)
-        response.raise_for_status()
-        
-        n8n_response_data = response.json()
-        data_to_process = n8n_response_data.get('json', n8n_response_data)
-
-        # Standardize the summary response
-        final_data = {
-            "summary": data_to_process.get('summary') or data_to_process.get('output')
-        }
-
-        if not final_data["summary"]:
-             final_data["summary"] = "Could not summarize."
-
-        return jsonify(final_data)
+        # Call OpenAI API directly for the summary
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=prompt_messages,
+            max_tokens=20
+        )
+        summary = response.choices[0].message.content.strip().replace('"', '')
+        return jsonify({"summary": summary})
         
     except Exception as e:
-        print(f"Error calling n8n for summary: {e}")
-        return jsonify({"error": "Failed to generate summary via n8n"}), 500
+        print(f"Error calling OpenAI for summary: {e}")
+        return jsonify({"summary": "Could not summarize."}), 500
 
 
 if __name__ == '__main__':
