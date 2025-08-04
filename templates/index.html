@@ -3,780 +3,1006 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <title>HomeBot with OpenAI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Libraries for Markdown and Chart rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
+        /* --- Base Styles & Resets --- */
+        :root {
+            --primary-color: #10a37f; /* OpenAI Green */
+            --primary-dark: #0d8265;
+            --background-light: #f9f9f9;
+            --border-light: #e5e5e5;
+            --text-dark: #3a3a3a;
+            --text-light: #fff;
+            --user-bubble-bg: #e0f7fa;
+            --user-bubble-text: #00796b;
+            --bot-bubble-bg: #f0f4f9;
+            --bot-bubble-text: #333;
+            --success-color: #4caf50;
+        }
+
         body, html {
-            height: 100vh;
-            width: 100vw;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            min-height: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-light);
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
         }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* --- Main Layout --- */
         .main-wrapper {
             display: flex;
-            flex: 1 1 0%;
-            width: 100vw;
-            height: 100vh;
-            min-width: 0;
-            min-height: 0;
-            overflow-x: auto;
-        }
-        .sidebar {
-            width: 250px;
-            min-width: 40px;
-            max-width: 250px;
-            padding-top: 0;
-            transition: width 0.3s, min-width 0.3s;
-            flex-shrink: 1;
-        }
-        .main-chat {
-            flex: 1 1 0%;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-            min-height: 0;
-            height: 100vh;
-        }
-        .chat-container {
-            flex: 1 1 0%;
-            min-width: 0;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            background: #fff;
+            height: 100dvh;
             height: 100%;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
         }
-        .chat-header {
+
+        /* --- Sidebars --- */
+        .sidebar {
+            background: #ffffff;
+            border-right: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            z-index: 200;
+            transition: all 0.3s ease-in-out;
             flex-shrink: 0;
-            background: #f7f7fc;
-            border-bottom: 1px solid #ece9f7;
-            padding: 24px 24px 16px 24px;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #3a3a3a;
         }
-        .chat-messages {
-            flex: 1 1 0%;
-            min-width: 0;
-            min-height: 0;
-            padding: 24px;
+        
+        #left-sidebar {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 260px;
+            transform: translateX(-100%);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        #left-sidebar.is-open {
+            transform: translateX(0);
+        }
+        
+        #right-sidebar {
+            width: 280px;
+            border-right: none;
+            border-left: 1px solid var(--border-light);
+            transform: translateX(100%);
+            position: absolute;
+            top: 0; right: 0; bottom: 0;
+        }
+
+        #right-sidebar.is-open {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            flex-shrink: 0;
+        }
+
+        #newConversation {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--primary-color);
+            color: var(--text-light);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #newConversation:hover {
+            background: var(--primary-dark);
+        }
+
+        .session-list-container {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #888;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        #sessionList {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .session-btn {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+        }
+        .session-btn:hover, .session-btn.selected {
+            background: var(--primary-color);
+            color: var(--text-light);
+            border-color: var(--primary-color);
+        }
+
+        /* --- Main Chat Area --- */
+        .main-chat {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background: #fff;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+            background: var(--background-light);
+            border-bottom: 1px solid var(--border-light);
+            padding: 12px 16px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-toggle {
+            width: 38px;
+            height: 38px;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .sidebar-toggle:hover {
+            background: var(--primary-color);
+        }
+        .sidebar-toggle:hover .line, .sidebar-toggle:hover svg {
+            background: var(--text-light);
+            stroke: var(--text-light);
+        }
+        .sidebar-toggle .line {
+            width: 18px;
+            height: 2px;
+            background: var(--primary-color);
+            border-radius: 2px;
+            margin: 2px 0;
+        }
+        .sidebar-toggle svg {
+            stroke: var(--primary-color);
+            transition: stroke 0.2s ease;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             display: flex;
             flex-direction: column;
             gap: 16px;
-            min-width: 200px;
         }
+
+        /* --- Messages & Bubbles --- */
         .message {
             display: flex;
             align-items: flex-start;
             gap: 12px;
+            max-width: 90%;
+            animation: messageFadeIn 0.5s ease-out;
         }
-        .user {
-            flex-direction: row-reverse;
-            justify-content: flex-end;
+        @keyframes messageFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .user .bubble {
-            background: #e0f7fa;
-            color: #00796b;
-            margin-left: 0;
-            margin-right: 8px;
-            align-self: flex-end;
-            text-align: right;
-        }
-        .user .avatar {
-            display: none;
-        }
-        .bot {
-            flex-direction: row;
-            justify-content: flex-start;
-        }
-        .bot .bubble {
-            background: #ede7f6;
-            color: #5e35b1;
-            margin-right: 0;
-            margin-left: 8px;
-            align-self: flex-start;
-        }
-        .bot .avatar {
+
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message.assistant { align-self: flex-start; }
+        
+        .avatar {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #6366f1 0%, #5e35b1 100%);
+            background: var(--primary-color);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #fff;
-            margin-right: 8px;
-            margin-left: 0;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
-        .bot .avatar svg {
-            width: 22px;
-            height: 22px;
-            display: block;
+        .avatar:hover { transform: scale(1.1); }
+        .avatar svg { 
+            width: 24px; 
+            height: 24px;
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
+
+        /* --- Copy Animation --- */
+        .avatar.copied {
+            animation: pop-and-check 1.5s ease-in-out;
+        }
+        @keyframes pop-and-check {
+            0% { background-color: var(--primary-color); transform: scale(1); }
+            10% { transform: scale(1.2); }
+            20% { background-color: var(--success-color); transform: scale(1.1); }
+            80% { background-color: var(--success-color); transform: scale(1.1); }
+            100% { background-color: var(--primary-color); transform: scale(1); }
+        }
+        .avatar .icon-bot { transform: scale(1); opacity: 1; position: absolute; }
+        .avatar .icon-check { transform: scale(0); opacity: 0; position: absolute; }
+        .avatar.copied .icon-bot { transform: scale(0); opacity: 0; }
+        .avatar.copied .icon-check { transform: scale(1); opacity: 1; transition-delay: 0.1s; }
+
+
         .bubble {
-            max-width: 70%;
             background: #f3f4f6;
             border-radius: 12px;
-            padding: 12px 16px;
+            padding: 10px 14px;
             font-size: 1rem;
+            line-height: 1.5;
             color: #222;
-            position: relative;
-            overflow-x: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
-        .bubble .echarts, .bubble canvas {
-            display: block;
-            margin: 24px auto 0 auto;
-            max-width: 100%;
-            height: 400px;
-            min-width: 320px;
+        .message.user .bubble {
+            background: var(--user-bubble-bg);
+            color: var(--user-bubble-text);
+            border-radius: 12px 12px 2px 12px;
         }
-        .bubble .echarts {
-            z-index: 1;
+        .message.assistant .bubble {
+            background: var(--bot-bubble-bg);
+            color: var(--bot-bubble-text);
+            border-radius: 12px 12px 12px 2px;
         }
-        .bubble script {
-            display: none;
+        
+        /* Styles for rendered Markdown and Charts */
+        .bubble ul { padding-left: 20px; margin-top: 8px; margin-bottom: 8px; }
+        .bubble p { margin: 0; }
+        .bubble p:not(:last-child) { margin-bottom: 12px; }
+        .echarts-container { width: 100%; height: 300px; margin-top: 1rem; }
+
+        /* Typing Indicator */
+        .typing-indicator { display: flex; align-items: center; gap: 5px; }
+        .typing-indicator span {
+            height: 8px; width: 8px; background-color: var(--primary-color);
+            border-radius: 50%; display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
         }
-        /* Flashy and interactive button styles */
-        button, .session-btn {
-            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
         }
-        button:hover, .session-btn:hover {
-            background: linear-gradient(90deg, #5e35b1 0%, #6366f1 100%);
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: translateY(-2px) scale(1.04);
-        }
-        button:active, .session-btn:active {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            box-shadow: 0 2px 8px rgba(99,102,241,0.28);
-            transform: translateY(1px) scale(0.98);
-        }
-        /* Custom send button */
-        #send {
-            background: none;
-            border: none;
-            border-radius: 50%;
-            width: 72px;
-            height: 72px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-        }
-        #send:hover {
-            background: #ece9f7;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: scale(1.12);
-        }
-        #send:active {
-            background: #d1d5db;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.28);
-            transform: scale(0.97);
-        }
-        #send svg {
-            width: 40px;
-            height: 40px;
-            stroke: #6366f1;
-            stroke-width: 3.5;
-            fill: none;
-        }
-        /* Hide default button text */
-        #send span { display: none; }
-        .chat-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin: 12px 0;
-            font-size: 1rem;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e0e7ff 100%);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.08);
-        }
-        .chat-table th, .chat-table td {
-            padding: 14px 18px;
-            text-align: left;
-            border-bottom: 1px solid #d1d5db;
-        }
-        .chat-table th {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            font-weight: 700;
-            border-bottom: 2px solid #5e35b1;
-        }
-        .chat-table tr:last-child td {
-            border-bottom: none;
-        }
-        .chat-table tr:hover td {
-            background: #ede7f6;
-            transition: background 0.2s;
-        }
-        .chat-table tr:nth-child(even) td {
-            background: #f3f4f6;
-        }
-        /* Chart.js canvas styling */
-        .chat-messages canvas {
-            display: block;
-            margin: 18px auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            padding: 12px;
-        }
-        /* Session list styling */
-        .sidebar {
-            height: 100vh;
-            min-height: 0;
+        
+        /* --- Chat Input & Suggestions --- */
+        .chat-input-area {
             flex-shrink: 0;
-            background: #f7f7fc;
-            border-right: 1px solid #ece9f7;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 32px 0;
+            background: var(--background-light);
+            border-top: 1px solid var(--border-light);
         }
-        .session-btn {
-            width: 180px;
-            margin-bottom: 8px;
-            background: #fff;
-            border: 1px solid #ece9f7;
-            border-radius: 6px;
-            padding: 8px;
-            font-size: 0.95rem;
-            cursor: pointer;
-            text-align: left;
+        #reply-suggestions {
+            display: flex; gap: 8px; padding: 8px 12px 4px;
+            flex-wrap: wrap; transition: opacity 0.3s ease;
         }
-        .chat-input {
-            display: flex;
-            align-items: center;
-            padding: 16px 24px;
-            border-top: 1px solid #f0f0f0;
-            background: #f7f7fc;
-            gap: 16px;
-            min-height: 80px;
-            flex-shrink: 0;
-            position: relative;
-            bottom: 0;
-            z-index: 2;
-            margin-bottom: 0;
-            min-width: 200px; /* Prevents chat input from becoming too small */
+        .suggestion-btn {
+            background: #fff; border: 1px solid #ddd; border-radius: 16px;
+            padding: 6px 12px; font-size: 0.9rem; cursor: pointer;
+            transition: all 0.2s ease;
         }
-        .chat-input textarea {
-            flex: 1 1 0%;
-            padding: 16px;
-            border-radius: 999px; /* Make the textarea circular */
-            border: 1px solid #e0e0e0;
-            font-size: 1.15rem;
-            outline: none;
-            resize: none;
-            min-height: 56px;
-            max-height: 220px;
-            line-height: 1.6;
-            margin-right: 0;
-            box-sizing: border-box;
-            width: 100%;
-            height: 56px;
-            background: #fff;
-            min-width: 100px; /* Prevents textarea from becoming unusable */
-        }
-        /* 1. Make session list width responsive */
-        .sidebar > div[style] {
-            width: 100%;
-            max-width: 180px;
-            min-width: 0;
-            box-sizing: border-box;
-        }
-        /* 2. Accessibility improvements */
-        #send span {
-            display: none;
-        }
-        #send[aria-label]::after {
-            content: attr(aria-label);
-            position: absolute;
-            left: -9999px;
-            top: auto;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-        }
-        .bot-avatar-anim {
-            transition: transform 0.3s cubic-bezier(.68,-0.55,.27,1.55), box-shadow 0.3s;
-            box-shadow: 0 2px 12px rgba(99,102,241,0.18);
-        }
-        .bot-avatar-anim:hover {
-            transform: scale(1.15) rotate(-8deg);
-            box-shadow: 0 6px 24px rgba(99,102,241,0.28);
-        }
-        .bot-avatar-anim.copied {
-            animation: copied-flash 0.8s;
-        }
-        @keyframes copied-flash {
-            0% { box-shadow: 0 0 0 0 #5e35b1; }
-            50% { box-shadow: 0 0 24px 8px #6366f1; }
-            100% { box-shadow: 0 2px 12px rgba(99,102,241,0.18); }
-        }
-        .message-anim {
-            animation: messageFadeIn 0.7s cubic-bezier(.68,-0.55,.27,1.55);
-        }
-        @keyframes messageFadeIn {
-            0% {
-                opacity: 0;
-                transform: translateY(24px) scale(0.95);
-            }
-            60% {
-                opacity: 1;
-                transform: translateY(-4px) scale(1.04);
-            }
-            100% {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-        .sidebar-header {
-            display: flex;
-            align-items: center;
+        .suggestion-btn:hover { background: var(--bot-bubble-bg); border-color: var(--primary-color); }
+        .chat-input-form {
+            display: flex; align-items: flex-start; padding: 8px 12px 12px;
             gap: 12px;
-            width: 100%;
-            margin-bottom: 32px;
-            justify-content: flex-start;
-            min-height: 60px;
-            position: relative;
-            padding: 16px 16px 0 45px;
         }
-        .sidebar-toggle {
-            width: 44px;
-            height: 44px;
-            background: #fff;
-            border: 1px solid #ece9f7;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 10;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            transition: background 0.2s, box-shadow 0.2s, transform 0.3s cubic-bezier(.68,-0.55,.27,1.55);
-            margin: 0;
+        #input {
+            flex-grow: 1; padding: 12px 18px; border-radius: 22px;
+            border: 1px solid #e0e0e0; font-size: 1rem; outline: none;
+            resize: none; min-height: 44px; max-height: 150px;
+            line-height: 1.5; background: #fff; transition: border-color 0.2s;
         }
-        .sidebar-toggle:hover {
-            background: #ece9f7;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: scale(1.08);
+        #input:focus { border-color: var(--primary-color); }
+        #send {
+            background: var(--primary-color); border: none; border-radius: 50%;
+            width: 44px; height: 44px; flex-shrink: 0; display: flex;
+            align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.2s ease;
         }
-        .sidebar-toggle .lines {
+        #send:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(16, 163, 127, 0.2); }
+        #send:disabled { background: #ccc; cursor: not-allowed; }
+        #send svg { width: 20px; height: 20px; stroke: var(--text-light); stroke-width: 2; }
+        
+        /* --- Smart Context Sidebar --- */
+        .context-section {
+            margin-bottom: 24px;
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            min-height: 0;
         }
-        .sidebar-toggle .line {
-            width: 24px;
-            height: 3px;
-            background: #6366f1;
-            border-radius: 2px;
-        }
-        #newConversation {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            padding: 12px 32px;
-            font-size: 1rem;
+        .context-title {
             font-weight: 600;
+            color: #555;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+        .context-content {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .context-card {
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        .context-card strong {
+            display: block;
+            color: var(--primary-dark);
+            margin-bottom: 4px;
+        }
+        .notes-list {
+            list-style-type: '📌';
+            padding-left: 20px;
+        }
+        .notes-list li {
+            padding-left: 8px;
+            margin-bottom: 8px;
+        }
+        /* NEW: Pagination Styles */
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 8px;
+            flex-shrink: 0;
+        }
+        .pagination-btn {
+            background: none;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            padding: 4px 8px;
             cursor: pointer;
-            margin-bottom: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            height: 44px;
         }
-        #newConversation span {
-            display: inline;
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
-        #newConversation svg {
-            width: 22px;
-            height: 22px;
+        .page-info {
+            font-size: 0.8rem;
+            color: #888;
         }
-        .sidebar.collapsed {
-            width: 60px !important;
-            min-width: 60px !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            border: none !important;
-            overflow: hidden !important;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .sidebar.collapsed .sidebar-header {
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 0;
-            min-height: 120px;
-            padding: 16px 8px 0 8px;
-        }
-        .sidebar.collapsed #newConversation {
-            width: 38px;
-            height: 38px;
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            box-shadow: none;
+
+        /* NEW: "Add to Notes" Button */
+        #add-to-notes-btn {
+            position: absolute;
+            display: none;
+            background: var(--primary-color);
+            color: white;
             border: none;
-            padding: 0;
-            margin-bottom: 0;
-            justify-content: center;
-            align-items: center;
-            display: flex;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 100;
         }
-        .sidebar.collapsed #newConversation span {
-            display: none;
-        }
-        .sidebar.collapsed #newConversation svg {
-            width: 22px;
-            height: 22px;
-        }
-        .sidebar.collapsed .sidebar-toggle {
-            margin-top: 0;
-        }
-        .sidebar.collapsed > div:not(.sidebar-header) {
-            display: none;
-        }
-        /* Animation for sidebar show/hide */
-        .sidebar-anim {
-            animation: sidebarSlideIn 0.35s cubic-bezier(.68,-0.55,.27,1,55);
-        }
-        .sidebar-anim-hide {
-            animation: sidebarSlideOut 0.35s cubic-bezier(.68,-0.55,.27,1,55);
-        }
-        @keyframes sidebarSlideIn {
-            0% { width: 60px; min-width: 60px; opacity: 0.5; }
-            100% { width: 250px; min-width: 250px; opacity: 1; }
-        }
-        @keyframes sidebarSlideOut {
-            0% { width: 250px; min-width: 250px; opacity: 1; }
-            100% { width: 60px; min-width: 60px; opacity: 0.5; }
-        }
-        .main-wrapper, .main-chat, .chat-container {
-            min-width: 0;
-            overflow-x: auto;
-            min-width: 260px; /* Prevents horizontal shrinking below 260px */
-        }
-        /* 3. Keyboard navigation for sidebar toggle and session buttons */
-        .sidebar-toggle, .session-btn {
-            outline: none;
-        }
-        .sidebar-toggle:focus, .session-btn:focus {
-            box-shadow: 0 0 0 2px #6366f1;
-        }
-        .session-btn:hover,
-        .session-btn:focus,
-        .session-btn:active,
-        .session-btn.selected,
-        .session-btn[aria-current="true"] {
-            color: #fff !important;
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%) !important;
-            outline: none;
+
+        /* --- Desktop & Tablet Styles --- */
+        @media (min-width: 768px) {
+            #left-sidebar {
+                position: static;
+                transform: none;
+                box-shadow: none;
+                width: 260px;
+                transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, transform 0.3s ease-in-out;
+            }
+
+            #left-sidebar:not(.is-open) {
+                width: 0;
+                padding-left: 0;
+                padding-right: 0;
+                overflow: hidden;
+                border-right: none;
+            }
+
+            #sidebarOpenBtn {
+                display: none;
+            }
+            
+            #left-sidebar:not(.is-open) + .main-chat #sidebarOpenBtn {
+                display: flex;
+            }
+
+            #right-sidebar {
+                position: static;
+                transform: none;
+                box-shadow: none;
+                width: 280px;
+            }
+            #right-sidebar:not(.is-open) {
+                width: 0;
+                padding-left: 0;
+                padding-right: 0;
+                overflow: hidden;
+                border-left: none;
+            }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar" id="left-sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-toggle" id="sidebarToggle">
-                    <div class="lines">
+                <button id="newConversation">
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M11 3V19M3 11H19" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>New Chat</span>
+                </button>
+                <div class="sidebar-toggle" id="sidebarCloseBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </div>
+            </div>
+            <div class="session-list-container">
+                Recent
+                <div id="sessionList"></div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div class="chat-header">
+                <div class="header-left">
+                    <div class="sidebar-toggle" id="sidebarOpenBtn">
                         <div class="line"></div>
                         <div class="line"></div>
                         <div class="line"></div>
                     </div>
+                    HomeBot
                 </div>
-                <button id="newConversation">
-                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="10" width="16" height="2.5" rx="1.25" fill="#fff"/>
-                        <rect x="10" y="3" width="2.5" height="16" rx="1.25" fill="#fff"/>
-                    </svg>
-                    <span>New chat</span>
-                </button>
+                <!-- NEW: Toggle for the right sidebar -->
+                <div class="sidebar-toggle" id="contextToggleBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6Z"/><path d="M12 2v20"/><path d="M18 6H6"/></svg>
+                </div>
             </div>
-            <div style="width: 180px; margin-top: 8px;">
-                <div style="font-size: 1.05rem; font-weight: 600; color: #888; margin-bottom: 12px;">Recent</div>
-                <div id="sessionList"></div>
-            </div>
-        </div>
-        <div class="main-chat">
-            <div class="chat-container">
-                <div class="chat-header">Chatbot</div>
-                <div class="chat-messages" id="messages"></div>
-                <form class="chat-input" id="chatForm" autocomplete="off">
-                    <textarea id="input" placeholder="Ask away.." autofocus></textarea>
+            <div class="chat-messages" id="messages"></div>
+            <div class="chat-input-area">
+                <div id="reply-suggestions"></div>
+                <form class="chat-input-form" id="chatForm" autocomplete="off">
+                    <textarea id="input" placeholder="Ask away..." autofocus rows="1"></textarea>
                     <button type="submit" id="send" aria-label="Send">
-                        <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="20" cy="20" r="18" fill="#f7f7fc" />
-                            <path d="M20 28 V12" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
-                            <path d="M14 18 L20 12 L26 18" stroke="#6366f1" stroke-width="3" stroke-linecap="round" fill="none"/>
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <span>Send</span>
                     </button>
                 </form>
             </div>
         </div>
+        
+        <!-- NEW: Right Sidebar HTML Structure -->
+        <div class="sidebar" id="right-sidebar">
+            <div class="context-section" id="context-entities">
+                <div class="context-title">Smart Context</div>
+                <div class="context-content" id="entities-content"></div>
+                <div class="pagination-controls" id="entities-pagination"></div>
+            </div>
+            <div class="context-section" id="context-notes">
+                <div class="context-title">Key Notes</div>
+                <div class="context-content">
+                    <ul class="notes-list" id="notes-content"></ul>
+                </div>
+                <div class="pagination-controls" id="notes-pagination"></div>
+            </div>
+        </div>
     </div>
+    
+    <!-- NEW: Button for "Add to Notes" feature -->
+    <button id="add-to-notes-btn">Add to Notes</button>
+
     <script>
-        let sessionId = generateSessionId();
-        let sessions = [];
+        // --- DOM Element References ---
+        const leftSidebar = document.getElementById('left-sidebar');
+        const rightSidebar = document.getElementById('right-sidebar');
+        const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+        const contextToggleBtn = document.getElementById('contextToggleBtn');
+        const newConversationBtn = document.getElementById('newConversation');
+        const sessionList = document.getElementById('sessionList');
+        const messagesContainer = document.getElementById('messages');
+        const suggestionsContainer = document.getElementById('reply-suggestions');
+        const chatForm = document.getElementById('chatForm');
+        const input = document.getElementById('input');
+        const sendBtn = document.getElementById('send');
+        const entitiesContent = document.getElementById('entities-content');
+        const notesContent = document.getElementById('notes-content');
+        const entitiesPagination = document.getElementById('entities-pagination');
+        const notesPagination = document.getElementById('notes-pagination');
+        const addToNotesBtn = document.getElementById('add-to-notes-btn');
 
-        function generateSessionId() {
-            return 'sess_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
-        }
+        // --- State Management ---
+        let currentSessionId = null;
+        let sessions = {};
+        let isSummarizing = false;
+        
+        // --- SVG Icons ---
+        const botIconSVG = `<svg class="icon-bot" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="white" fill-opacity="0.2"/><path d="M15.5 10.5C15.5 11.3284 14.8284 12 14 12C13.1716 12 12.5 11.3284 12.5 10.5C12.5 9.67157 13.1716 9 14 9C14.8284 9 15.5 9.67157 15.5 10.5Z" fill="white"/><path d="M10 12C10.8284 12 11.5 11.3284 11.5 10.5C11.5 9.67157 10.8284 9 10 9C9.17157 9 8.5 9.67157 8.5 10.5C8.5 11.3284 9.17157 12 10 12Z" fill="white"/><path d="M9 16C9.8562 16.6929 10.8984 17.1611 12 17.1611C13.1016 17.1611 14.1438 16.6929 15 16" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M18 6L17 7" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+        const checkIconSVG = `<svg class="icon-check" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-        function resetSession() {
-            sessionId = generateSessionId();
-        }
+        // --- Core Functions ---
+        function generateSessionId() { return 'sess_' + Date.now(); }
 
-        function addSessionSummary(summary, id, messages) {
-            sessions.push({ summary, id, messages: messages || [summary] });
+        function startNewSession() {
+            currentSessionId = generateSessionId();
+            messagesContainer.innerHTML = '';
+            suggestionsContainer.innerHTML = '';
+            entitiesContent.innerHTML = '';
+            notesContent.innerHTML = '';
+            rightSidebar.classList.remove('is-open');
+            input.value = '';
+            input.focus();
             renderSessionList();
         }
 
-        function updateSessionSummary(newMessage, id) {
-            const session = sessions.find(s => s.id === id);
-            if (session) {
-                session.messages.push(newMessage);
-                summarizeSession(session);
+        // --- Message Handling ---
+        function addMessage(text, role, sessionId) {
+            if (!sessions[sessionId]) {
+                // Initialize session with empty context
+                sessions[sessionId] = { summary: 'New Chat', messages: [], emoji: '💬', entities: [], notes: [], currentEntityPage: 1, currentNotePage: 1 };
+            }
+            const message = { role, content: text };
+            sessions[sessionId].messages.push(message);
+            renderSessionList();
+            if (sessionId === currentSessionId) {
+                renderSingleMessage(message);
             }
         }
 
-        async function summarizeSession(session) {
-            try {
-                const res = await fetch('/summarize_session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: session.messages })
-                });
-                const data = await res.json();
-                session.summary = data.summary;
-                renderSessionList();
-            } catch {
-                // fallback: join first and last message
-                session.summary = session.messages[0] + ' ... ' + session.messages[session.messages.length - 1];
-                renderSessionList();
-            }
-        }
-
-        /* 5. Session switching: reload previous messages (in-memory only) */
-        function renderSessionMessages(session) {
-            messages.innerHTML = '';
-            session.messages.forEach((msg, idx) => {
-                addMessage(msg, idx % 2 === 0 ? 'user' : 'bot');
-            });
-        }
-
-        function renderSessionList() {
-            const sessionList = document.getElementById('sessionList');
-            sessionList.innerHTML = '';
-            sessions.forEach((s, idx) => {
-                const btn = document.createElement('button');
-                btn.textContent = s.summary;
-                btn.className = 'session-btn';
-                btn.tabIndex = 0;
-                btn.onclick = function() {
-                    sessionId = s.id;
-                    renderSessionMessages(s);
-                };
-                btn.onkeydown = function(e) {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        btn.click();
-                    }
-                };
-                sessionList.appendChild(btn);
-            });
-        }
-
-        /* 4. Sanitize message content before rendering */
-        function escapeHTML(str) {
-            return str.replace(/[&<>"']/g, function(tag) {
-                const chars = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                };
-                return chars[tag] || tag;
-            });
-        }
-
-        function addMessage(text, sender) {
+        function renderSingleMessage(message) {
             const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${sender} message-anim`;
-            let avatar;
-            if (sender === 'bot') {
-                avatar = document.createElement('div');
-                avatar.className = 'avatar bot-avatar-anim';
-                avatar.innerHTML = `<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="30" cy="30" r="28" fill="url(#grad)" />
-                    <defs>
-                        <radialGradient id="grad" cx="50%" cy="50%" r="50%">
-                            <stop offset="0%" stop-color="#6366f1" />
-                            <stop offset="100%" stop-color="#5e35b1" />
-                        </radialGradient>
-                    </defs>
-                    <path d="M22 30c0-6 16-6 16 0" stroke="#fff" stroke-width="4" fill="none"/>
-                    <circle cx="26" cy="26" r="3" fill="#fff"/>
-                    <circle cx="34" cy="26" r="3" fill="#fff"/>
-                </svg>`;
+            msgDiv.className = `message ${message.role}`;
+            if (message.role === 'assistant') {
+                const avatar = document.createElement('div');
+                avatar.className = 'avatar';
+                avatar.innerHTML = botIconSVG + checkIconSVG;
                 avatar.title = "Click to copy response";
-                avatar.style.cursor = "pointer";
-                avatar.onclick = function() {
-                    const bubble = msgDiv.querySelector('.bubble');
-                    if (bubble) {
-                        navigator.clipboard.writeText(bubble.textContent);
-                        avatar.classList.add('copied');
-                        setTimeout(() => avatar.classList.remove('copied'), 800);
-                    }
-                };
+                avatar.onclick = () => copyToClipboard(message.content, avatar);
                 msgDiv.appendChild(avatar);
             }
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
-            // Only allow HTML for charts/tables, otherwise escape
-            if (/<(canvas|div class=\"echarts\"|table|th|tr|td|script)/.test(text)) {
-                bubble.innerHTML = text;
+            
+            if (message.content.includes('echarts-container')) {
+                bubble.innerHTML = message.content;
+                const scripts = bubble.querySelectorAll('script');
+                scripts.forEach(script => {
+                    try { new Function(script.textContent)(); } 
+                    catch (e) { console.error("Error executing chart script:", e); }
+                });
             } else {
-                bubble.innerHTML = escapeHTML(text);
+                bubble.innerHTML = marked.parse(message.content);
             }
+
             msgDiv.appendChild(bubble);
-            messages.appendChild(msgDiv);
-            messages.scrollTop = messages.scrollHeight;
-            setTimeout(() => msgDiv.classList.remove('message-anim'), 700);
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            suggestionsContainer.innerHTML = '';
+            const typingMsgDiv = document.createElement('div');
+            typingMsgDiv.className = 'message assistant';
+            typingMsgDiv.id = 'typing-indicator';
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.innerHTML = botIconSVG;
+            typingMsgDiv.appendChild(avatar);
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            typingMsgDiv.appendChild(bubble);
+            messagesContainer.appendChild(typingMsgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
 
-            // Chart.js auto-render support
-            const canvases = bubble.querySelectorAll('canvas[id]');
-            const scripts = bubble.querySelectorAll('script');
-            scripts.forEach(script => {
-                try {
-                    // Evaluate the script in the context of the page
-                    // Only allow if script is for chart rendering
-                    if (/Chart/.test(script.textContent)) {
-                        eval(script.textContent);
-                    }
-                } catch (e) {
-                    console.error('Chart.js script error:', e);
-                }
-            });
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
 
-            // ECharts auto-render support
-            const echartsDivs = bubble.querySelectorAll('div.echarts');
-            echartsDivs.forEach((div, idx) => {
-                if (!div.id) {
-                    div.id = 'echarts_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + idx;
-                }
-            });
-            const echartsScripts = bubble.querySelectorAll('script');
-            echartsScripts.forEach(script => {
-                try {
-                    if (/echarts/.test(script.textContent)) {
-                        eval(script.textContent);
-                    }
-                } catch (e) {
-                    console.error('ECharts script error:', e);
-                }
+        // --- UI Rendering ---
+        function renderSessionList() {
+            sessionList.innerHTML = '';
+            Object.keys(sessions).reverse().forEach(id => {
+                const session = sessions[id];
+                const btn = document.createElement('button');
+                btn.className = 'session-btn';
+                btn.textContent = `${session.emoji || '💬'} ${session.summary}`;
+                btn.dataset.sessionId = id;
+                if (id === currentSessionId) btn.classList.add('selected');
+                btn.onclick = () => switchSession(id);
+                sessionList.appendChild(btn);
             });
         }
 
-        const input = document.getElementById('input');
-        const send = document.getElementById('send');
-        const messages = document.getElementById('messages');
-        const chatForm = document.getElementById('chatForm');
-
-        input.addEventListener('keydown', function(e) {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                // Insert line break
-                const start = input.selectionStart;
-                const end = input.selectionEnd;
-                input.value = input.value.substring(0, start) + "\n" + input.value.substring(end);
-                input.selectionStart = input.selectionEnd = start + 1;
-                e.preventDefault();
-            } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                // Submit form
-                chatForm.requestSubmit();
-                e.preventDefault();
+        function switchSession(sessionId) {
+            currentSessionId = sessionId;
+            messagesContainer.innerHTML = '';
+            suggestionsContainer.innerHTML = '';
+            const session = sessions[sessionId];
+            if (session) {
+                session.messages.forEach(msg => renderSingleMessage(msg));
+                // Restore context from session data
+                renderContextSidebar();
+            } else {
+                // Clear context if there's no session data
+                entitiesContent.innerHTML = '';
+                notesContent.innerHTML = '';
+                rightSidebar.classList.remove('is-open');
             }
-        });
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            renderSessionList();
+            if (window.innerWidth < 768) {
+                leftSidebar.classList.remove('is-open');
+            }
+        }
 
-        chatForm.onsubmit = async function(e) {
+        function renderSuggestions(suggestions) {
+            suggestionsContainer.innerHTML = '';
+            if (!suggestions || suggestions.length === 0) return;
+            suggestions.forEach(text => {
+                const btn = document.createElement('button');
+                btn.className = 'suggestion-btn';
+                btn.textContent = text;
+                btn.onclick = () => {
+                    input.value = text;
+                    chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+                };
+                suggestionsContainer.appendChild(btn);
+            });
+        }
+        
+        function renderContextSidebar() {
+            const session = sessions[currentSessionId];
+            if (!session) return;
+
+            const itemsPerPage = 3;
+
+            // Render Entities with Pagination
+            const entities = session.entities || [];
+            let entityPage = session.currentEntityPage || 1;
+            const totalEntityPages = Math.ceil(entities.length / itemsPerPage);
+            const startEntity = (entityPage - 1) * itemsPerPage;
+            const endEntity = startEntity + itemsPerPage;
+            const paginatedEntities = entities.slice(startEntity, endEntity);
+
+            entitiesContent.innerHTML = '';
+            paginatedEntities.forEach(entity => {
+                const card = document.createElement('div');
+                card.className = 'context-card';
+                card.innerHTML = `<strong>${entity.term}</strong><p>${entity.definition}</p>`;
+                entitiesContent.appendChild(card);
+            });
+            renderPagination(entitiesPagination, entityPage, totalEntityPages, (newPage) => {
+                session.currentEntityPage = newPage;
+                renderContextSidebar();
+            });
+
+            // Render Notes with Pagination
+            const notes = session.notes || [];
+            let notePage = session.currentNotePage || 1;
+            const totalNotePages = Math.ceil(notes.length / itemsPerPage);
+            const startNote = (notePage - 1) * itemsPerPage;
+            const endNote = startNote + itemsPerPage;
+            const paginatedNotes = notes.slice(startNote, endNote);
+
+            notesContent.innerHTML = '';
+            paginatedNotes.forEach(note => {
+                const listItem = document.createElement('li');
+                listItem.textContent = note;
+                notesContent.appendChild(listItem);
+            });
+            renderPagination(notesPagination, notePage, totalNotePages, (newPage) => {
+                session.currentNotePage = newPage;
+                renderContextSidebar();
+            });
+
+            if (entities.length > 0 || notes.length > 0) {
+                rightSidebar.classList.add('is-open');
+            } else {
+                rightSidebar.classList.remove('is-open');
+            }
+        }
+
+        function renderPagination(container, currentPage, totalPages, onPageChange) {
+            container.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '‹ Prev';
+            prevBtn.className = 'pagination-btn';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => onPageChange(currentPage - 1);
+
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'page-info';
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Next ›';
+            nextBtn.className = 'pagination-btn';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => onPageChange(currentPage + 1);
+
+            container.append(prevBtn, pageInfo, nextBtn);
+        }
+
+        // --- Backend API Calls ---
+        async function getAiResponse(sessionId) {
+            showTypingIndicator();
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        messages: sessions[sessionId].messages,
+                        sessionId: sessionId 
+                    })
+                });
+
+                hideTypingIndicator();
+                if (!response.ok) throw new Error(`n8n API error: ${response.statusText}`);
+                
+                const result = await response.json();
+                const botReply = result.reply || result.output;
+
+                if (botReply) {
+                    addMessage(botReply, 'assistant', sessionId);
+                    fetchSuggestions(sessionId);
+                    fetchContext(sessionId); 
+                } else {
+                     addMessage("Sorry, I didn't get a valid response from the workflow.", 'assistant', sessionId);
+                }
+                
+                updateSessionSummary(sessionId);
+            } catch (error) {
+                console.error("API call failed:", error);
+                hideTypingIndicator();
+                addMessage("Sorry, something went wrong. Please check the server logs and try again.", 'assistant', sessionId);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function fetchSuggestions(sessionId) {
+            try {
+                const response = await fetch('/api/suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                });
+                if (!response.ok) return;
+                const result = await response.json();
+                if (result.suggestions) {
+                    renderSuggestions(result.suggestions);
+                }
+            } catch (error) {
+                console.error("Suggestion fetch failed:", error);
+            }
+        }
+
+        async function fetchContext(sessionId) {
+            try {
+                const response = await fetch('/api/context', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                });
+                if (!response.ok) return;
+                const result = await response.json();
+                // Save context to the session object
+                if (sessions[sessionId]) {
+                    sessions[sessionId].entities = result.entities || [];
+                    sessions[sessionId].notes = result.notes || [];
+                    sessions[sessionId].currentEntityPage = 1;
+                    sessions[sessionId].currentNotePage = 1;
+                }
+                renderContextSidebar();
+            } catch (error) {
+                console.error("Context fetch failed:", error);
+            }
+        }
+
+        async function updateSessionSummary(sessionId) {
+            if (isSummarizing || sessions[sessionId].messages.length < 2) return;
+            isSummarizing = true;
+            
+            try {
+                const response = await fetch('/api/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: sessions[sessionId].messages })
+                });
+                const result = await response.json();
+                if (result.summary && result.emoji) {
+                    sessions[sessionId].summary = result.summary;
+                    sessions[sessionId].emoji = result.emoji;
+                    renderSessionList();
+                }
+            } catch (error) {
+                console.error("Summary generation failed:", error);
+            } finally {
+                isSummarizing = false;
+            }
+        }
+
+        // --- Event Handlers ---
+        chatForm.onsubmit = async (e) => {
             e.preventDefault();
             const text = input.value.trim();
             if (!text) return;
-            addMessage(text, 'user');
+            suggestionsContainer.innerHTML = '';
+            addMessage(text, 'user', currentSessionId);
             input.value = '';
-            send.disabled = true;
-            let firstBotReply = '';
-            try {
-                const res = await fetch('/send_message', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify([{ message: text, sessionid: sessionId }])
-                });
-                const data = await res.json();
-                addMessage(data.reply, 'bot');
-                firstBotReply = data.reply;
-                // If this is a new session, add it to the session list
-                if (!sessions.some(s => s.id === sessionId)) {
-                    addSessionSummary(text, sessionId, [text, firstBotReply]);
-                } else {
-                    // Update the summary for the current session with the latest user message
-                    updateSessionSummary(text, sessionId);
-                }
-            } catch {
-                addMessage('Sorry, there was an error.', 'bot');
-            }
-            send.disabled = false;
+            adjustTextareaHeight();
+            sendBtn.disabled = true;
+            await getAiResponse(currentSessionId);
         };
+        
+        const toggleLeftSidebar = () => leftSidebar.classList.toggle('is-open');
+        const toggleRightSidebar = () => rightSidebar.classList.toggle('is-open');
 
-        document.getElementById('newConversation').onclick = function() {
-            document.getElementById('messages').innerHTML = '';
-            resetSession();
-        };
+        newConversationBtn.onclick = startNewSession;
+        sidebarOpenBtn.onclick = toggleLeftSidebar;
+        sidebarCloseBtn.onclick = toggleLeftSidebar;
+        contextToggleBtn.onclick = toggleRightSidebar;
 
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        let sidebarCollapsed = false;
-        sidebarToggle.onclick = function() {
-            sidebarCollapsed = !sidebarCollapsed;
-            if (sidebarCollapsed) {
-                sidebar.classList.add('collapsed');
-                sidebar.classList.remove('sidebar-anim');
-                sidebar.classList.add('sidebar-anim-hide');
-            } else {
-                sidebar.classList.remove('collapsed');
-                sidebar.classList.remove('sidebar-anim-hide');
-                sidebar.classList.add('sidebar-anim');
-            }
-            setTimeout(() => {
-                sidebar.classList.remove('sidebar-anim');
-                sidebar.classList.remove('sidebar-anim-hide');
-            }, 400);
-        };
-
-        window.addEventListener('load', resetSession);
-        window.addEventListener('resize', function() {
-            const sidebar = document.getElementById('sidebar');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            // Collapse sidebar if window width <= 600px, expand if > 600px
-            if (window.innerWidth <= 600 && !sidebar.classList.contains('collapsed')) {
-                sidebar.classList.add('collapsed');
-            } else if (window.innerWidth > 600 && sidebar.classList.contains('collapsed')) {
-                sidebar.classList.remove('collapsed');
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
             }
         });
+
+        input.addEventListener('input', adjustTextareaHeight);
+        function adjustTextareaHeight() {
+            input.style.height = 'auto';
+            input.style.height = (input.scrollHeight) + 'px';
+        }
+
+        // --- Utility Functions ---
+        function copyToClipboard(text, element) {
+            if (element.classList.contains('copied')) return;
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    element.classList.add('copied');
+                    setTimeout(() => { element.classList.remove('copied'); }, 1500);
+                }).catch(err => {
+                    console.error('Async clipboard copy failed:', err);
+                    fallbackCopyTextToClipboard(text, element);
+                });
+            } else {
+                fallbackCopyTextToClipboard(text, element);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text, element) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    element.classList.add('copied');
+                    setTimeout(() => { element.classList.remove('copied'); }, 1500);
+                }
+            } catch (err) {
+                console.error('Fallback copy command was unsuccessful:', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // --- "Add to Notes" Feature ---
+        messagesContainer.addEventListener('mouseup', (e) => {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+
+            if (selectedText && selection.anchorNode.parentElement.closest('.message.assistant .bubble')) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                addToNotesBtn.style.top = `${rect.top - 40}px`;
+                addToNotesBtn.style.left = `${rect.left + (rect.width / 2) - (addToNotesBtn.offsetWidth / 2)}px`;
+                addToNotesBtn.style.display = 'block';
+                
+                addToNotesBtn.onclick = async () => {
+                    const response = await fetch('/api/summarize-selection', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: selectedText })
+                    });
+                    const result = await response.json();
+                    if (result.note && sessions[currentSessionId]) {
+                        sessions[currentSessionId].notes.push(result.note);
+                        renderContextSidebar();
+                    }
+                    addToNotesBtn.style.display = 'none';
+                    window.getSelection().removeAllRanges();
+                };
+            } else {
+                addToNotesBtn.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (!e.target.closest('.bubble') && e.target !== addToNotesBtn) {
+                addToNotesBtn.style.display = 'none';
+            }
+        });
+
+        // --- Initialization ---
+        const handleResize = () => {
+            if (window.innerWidth < 1024) { 
+                leftSidebar.classList.remove('is-open');
+                rightSidebar.classList.remove('is-open');
+            } else {
+                leftSidebar.classList.add('is-open');
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        window.onload = () => {
+            handleResize();
+            startNewSession();
+            adjustTextareaHeight();
+        };
+
     </script>
 </body>
 </html>
