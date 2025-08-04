@@ -2,6 +2,7 @@ import os
 import requests
 import uuid
 import openai
+import json
 from flask import Flask, request, jsonify, render_template
 
 # Initialize the Flask application
@@ -38,35 +39,17 @@ def chat():
     if not messages:
         return jsonify({"error": "No messages provided."}), 400
 
-    # Extract the last message content to be used as 'chatInput'
     last_message = messages[-1].get('content', '')
-
-    # The simplified payload that will be sent to your n8n workflow.
-    n8n_payload = {
-        "chatInput": last_message,
-        "sessionId": session_id,
-    }
+    n8n_payload = { "chatInput": last_message, "sessionId": session_id }
 
     try:
-        # Forward the request to your n8n webhook
         response = requests.post(N8N_WEBHOOK_URL, json=n8n_payload)
-        response.raise_for_status()  # Raise an exception for bad status codes
-
-        # n8n is expected to return a JSON object
+        response.raise_for_status()
         n8n_response_data = response.json()
-        
-        # Handle cases where n8n might wrap the response in a 'json' key
         data_to_process = n8n_response_data.get('json', n8n_response_data)
-
-        # Standardize the response for the frontend.
-        final_data = {
-            "reply": data_to_process.get('reply') or data_to_process.get('output'),
-            "suggestions": data_to_process.get('suggestions', [])
-        }
-
+        final_data = { "reply": data_to_process.get('reply') or data_to_process.get('output') }
         if not final_data["reply"]:
             final_data["reply"] = "Sorry, I didn't get a valid response from the workflow."
-
         return jsonify(final_data)
 
     except requests.exceptions.RequestException as e:
@@ -90,15 +73,11 @@ def summarize():
     if not messages:
         return jsonify({"summary": "No messages to summarize."}), 400
         
-    # Construct the prompt for the summarization
     prompt_messages = messages + [{"role": "system", "content": "Summarize the following chat session in 5 words or less for a sidebar label."}]
     
     try:
-        # Call OpenAI API directly for the summary
         response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=prompt_messages,
-            max_tokens=20
+            model="gpt-3.5-turbo", messages=prompt_messages, max_tokens=20
         )
         summary = response.choices[0].message.content.strip().replace('"', '')
         return jsonify({"summary": summary})
@@ -106,6 +85,64 @@ def summarize():
     except Exception as e:
         print(f"Error calling OpenAI for summary: {e}")
         return jsonify({"summary": "Could not summarize."}), 500
+
+# NEW: This endpoint calls OpenAI directly to get suggested replies
+@app.route('/api/suggestions', methods=['POST'])
+def get_suggestions():
+    """
+    Generates suggested replies for the conversation using the OpenAI API directly.
+    """
+    if not OPENAI_API_KEY:
+        return jsonify({"error": "OpenAI API key not configured."}), 500
+
+    data = request.json
+    messages = data.get('messages', [])
+    if len(messages) < 2: # Don't generate suggestions at the very start
+        return jsonify({"suggestions": []})
+
+    # Define a "tool" for the OpenAI API to force it to return structured JSON
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "show_suggested_replies",
+            "description": "Show the user a few short suggested replies to continue the conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "replies": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "An array of 3 short, relevant, and engaging replies based on the last message."
+                    }
+                },
+                "required": ["replies"]
+            }
+        }
+    }]
+
+    try:
+        # Call OpenAI API with a tool choice to force it to generate suggestions
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "show_suggested_replies"}}
+        )
+        
+        choice = response.choices[0].message
+        suggestions = []
+        if choice.tool_calls:
+            tool_call = choice.tool_calls[0]
+            if tool_call.function.name == "show_suggested_replies":
+                # The arguments are a JSON string, so we need to parse them
+                arguments = json.loads(tool_call.function.arguments)
+                suggestions = arguments.get('replies', [])
+        
+        return jsonify({"suggestions": suggestions})
+
+    except Exception as e:
+        print(f"Error generating suggestions with OpenAI: {e}")
+        return jsonify({"suggestions": []}), 500
 
 
 if __name__ == '__main__':
