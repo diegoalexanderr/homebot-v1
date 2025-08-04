@@ -429,7 +429,7 @@
         // --- Message Handling ---
         function addMessage(text, role, sessionId) {
             if (!sessions[sessionId]) {
-                sessions[sessionId] = { summary: 'New Chat', messages: [] };
+                sessions[sessionId] = { summary: 'New Chat', messages: [], emoji: '💬' };
             }
             const message = { role, content: text };
             sessions[sessionId].messages.push(message);
@@ -487,7 +487,7 @@
                 const session = sessions[id];
                 const btn = document.createElement('button');
                 btn.className = 'session-btn';
-                btn.textContent = session.summary;
+                btn.textContent = `${session.emoji || '💬'} ${session.summary}`;
                 btn.dataset.sessionId = id;
                 if (id === currentSessionId) btn.classList.add('selected');
                 btn.onclick = () => switchSession(id);
@@ -591,8 +591,9 @@
                     body: JSON.stringify({ messages: sessions[sessionId].messages })
                 });
                 const result = await response.json();
-                if (result.summary) {
-                    sessions[sessionId].summary = `✨ ${result.summary}`;
+                if (result.summary && result.emoji) {
+                    sessions[sessionId].summary = result.summary;
+                    sessions[sessionId].emoji = result.emoji;
                     renderSessionList();
                 }
             } catch (error) {
@@ -698,4 +699,4 @@
 
     </script>
 </body>
-</html>
+</ht
