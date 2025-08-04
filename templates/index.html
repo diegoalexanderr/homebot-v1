@@ -168,8 +168,9 @@
         .sidebar-toggle:hover {
             background: var(--primary-color);
         }
-        .sidebar-toggle:hover .line {
+        .sidebar-toggle:hover .line, .sidebar-toggle:hover svg {
             background: var(--text-light);
+            stroke: var(--text-light);
         }
         .sidebar-toggle .line {
             width: 18px;
@@ -177,6 +178,10 @@
             background: var(--primary-color);
             border-radius: 2px;
             margin: 2px 0;
+        }
+        #sidebarCloseBtn svg {
+            stroke: var(--primary-color);
+            transition: stroke 0.2s ease;
         }
 
         .chat-messages {
@@ -318,7 +323,7 @@
         /* --- Desktop & Tablet Styles --- */
         @media (min-width: 768px) {
             .sidebar { position: static; transform: translateX(0); box-shadow: none; width: 260px; padding: 24px; }
-            .sidebar-toggle { display: none; }
+            #sidebarOpenBtn, #sidebarCloseBtn { display: none !important; } /* Hide both toggles on desktop */
             .chat-header { padding: 16px 24px; font-size: 1.5rem; }
             .chat-messages { padding: 24px; }
             #reply-suggestions { padding: 8px 24px 4px; }
@@ -337,6 +342,10 @@
                     </svg>
                     <span>New Chat</span>
                 </button>
+                <!-- NEW: Close button inside the sidebar -->
+                <div class="sidebar-toggle" id="sidebarCloseBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </div>
             </div>
             <div class="session-list-container">
                 Recent
@@ -346,7 +355,7 @@
 
         <div class="main-chat">
             <div class="chat-header">
-                <div class="sidebar-toggle" id="sidebarToggle">
+                <div class="sidebar-toggle" id="sidebarOpenBtn">
                     <div class="line"></div>
                     <div class="line"></div>
                     <div class="line"></div>
@@ -371,7 +380,8 @@
     <script>
         // --- DOM Element References ---
         const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOpenBtn = document.getElementById('sidebarOpenBtn');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
         const newConversationBtn = document.getElementById('newConversation');
         const sessionList = document.getElementById('sessionList');
         const messagesContainer = document.getElementById('messages');
@@ -588,7 +598,8 @@
         };
 
         newConversationBtn.onclick = startNewSession;
-        sidebarToggle.onclick = () => sidebar.classList.toggle('is-open');
+        sidebarOpenBtn.onclick = () => sidebar.classList.toggle('is-open');
+        sidebarCloseBtn.onclick = () => sidebar.classList.toggle('is-open');
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -608,7 +619,6 @@
             if (element.classList.contains('copied')) return; // Prevent re-triggering animation
 
             // --- ROBUST CLIPBOARD FUNCTION ---
-            // Try the modern Clipboard API first
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(() => {
                     element.classList.add('copied');
@@ -617,11 +627,9 @@
                     }, 1500);
                 }).catch(err => {
                     console.error('Async clipboard copy failed:', err);
-                    // Fallback for cases where permission is denied
                     fallbackCopyTextToClipboard(text, element);
                 });
             } else {
-                // Fallback for older browsers or non-secure contexts
                 fallbackCopyTextToClipboard(text, element);
             }
         }
@@ -629,8 +637,6 @@
         function fallbackCopyTextToClipboard(text, element) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
-            
-            // Avoid scrolling to bottom
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
