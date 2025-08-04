@@ -39,13 +39,13 @@ def send_message():
     try:
         response = requests.post(N8N_WEBHOOK_URL, json={
             'message': user_message,
-            'sessionID': session_id # <-- Passing the newly generated session ID
+            'sessionId': session_id # <-- Passing the newly generated session ID
         })
         response.raise_for_status() # Raise an exception for bad status codes
         bot_reply = response.json().get('output', 'No reply from webhook.')
         
         # Return the bot's reply and the new session ID to the client
-        return jsonify({'reply': bot_reply, 'sessionID': session_id})
+        return jsonify({'reply': bot_reply, 'sessionId': session_id})
 
     except requests.exceptions.RequestException as e:
         # Handle any errors during the webhook request
