@@ -4,779 +4,630 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeBot</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
+        /* --- Base Styles & Resets --- */
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #5e35b1;
+            --background-light: #f7f7fc;
+            --border-light: #ece9f7;
+            --text-dark: #3a3a3a;
+            --text-light: #fff;
+            --user-bubble-bg: #e0f7fa;
+            --user-bubble-text: #00796b;
+            --bot-bubble-bg: #ede7f6;
+            --bot-bubble-text: #5e35b1;
+        }
+
         body, html {
-            height: 100vh;
-            width: 100vw;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            min-height: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-light);
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Prevent scrolling on the body */
         }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* --- Main Layout --- */
         .main-wrapper {
             display: flex;
-            flex: 1 1 0%;
-            width: 100vw;
-            height: 100vh;
-            min-width: 0;
-            min-height: 0;
-            overflow-x: auto;
+            height: 100dvh; /* Dynamic viewport height for mobile */
+            height: 100%;   /* Fallback */
+            width: 100%;
+            position: relative;
+            overflow: hidden;
         }
+
+        /* --- Sidebar (Mobile First) --- */
         .sidebar {
-            width: 250px;
-            min-width: 40px;
-            max-width: 250px;
-            padding-top: 0;
-            transition: width 0.3s, min-width 0.3s;
-            flex-shrink: 1;
-        }
-        .main-chat {
-            flex: 1 1 0%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 260px;
+            background: var(--background-light);
+            border-right: 1px solid var(--border-light);
             display: flex;
             flex-direction: column;
-            min-width: 0;
-            min-height: 0;
-            height: 100vh;
+            padding: 16px;
+            z-index: 200;
+            transform: translateX(-100%); /* Hidden by default on mobile */
+            transition: transform 0.3s ease-in-out;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
-        .chat-container {
-            flex: 1 1 0%;
-            min-width: 0;
-            min-height: 0;
+
+        .sidebar.is-open {
+            transform: translateX(0); /* Visible when toggled */
+        }
+
+        .sidebar-header {
             display: flex;
-            flex-direction: column;
-            background: #fff;
-            height: 100%;
-        }
-        .chat-header {
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
             flex-shrink: 0;
-            background: #f7f7fc;
-            border-bottom: 1px solid #ece9f7;
-            padding: 24px 24px 16px 24px;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #3a3a3a;
         }
-        .chat-messages {
-            flex: 1 1 0%;
-            min-width: 0;
-            min-height: 0;
-            padding: 24px;
+
+        #newConversation {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: var(--text-light);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #newConversation:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+        }
+
+        .session-list-container {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #888;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
+        }
+        
+        #sessionList {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .session-btn {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s ease;
+        }
+        .session-btn:hover, .session-btn.selected {
+            background: var(--primary-color);
+            color: var(--text-light);
+            border-color: var(--primary-color);
+        }
+
+        /* --- Main Chat Area --- */
+        .main-chat {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background: #fff;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            background: var(--background-light);
+            border-bottom: 1px solid var(--border-light);
+            padding: 12px 16px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .sidebar-toggle {
+            width: 38px;
+            height: 38px;
+            background: #fff;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .sidebar-toggle:hover {
+            background: var(--primary-color);
+        }
+        .sidebar-toggle:hover .line {
+            background: var(--text-light);
+        }
+        .sidebar-toggle .line {
+            width: 18px;
+            height: 2px;
+            background: var(--primary-color);
+            border-radius: 2px;
+            margin: 3px 0;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* Momentum scrolling for iOS */
             display: flex;
             flex-direction: column;
             gap: 16px;
-            min-width: 200px;
         }
+
+        /* --- Messages & Bubbles --- */
         .message {
             display: flex;
             align-items: flex-start;
             gap: 12px;
+            max-width: 90%;
+            animation: messageFadeIn 0.5s ease-out;
         }
-        .user {
-            flex-direction: row-reverse;
-            justify-content: flex-end;
+        @keyframes messageFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .user .bubble {
-            background: #e0f7fa;
-            color: #00796b;
-            margin-left: 0;
-            margin-right: 8px;
+
+        .message.user {
             align-self: flex-end;
-            text-align: right;
+            flex-direction: row-reverse;
         }
-        .user .avatar {
-            display: none;
-        }
-        .bot {
-            flex-direction: row;
-            justify-content: flex-start;
-        }
-        .bot .bubble {
-            background: #ede7f6;
-            color: #5e35b1;
-            margin-right: 0;
-            margin-left: 8px;
+        .message.bot {
             align-self: flex-start;
         }
-        .bot .avatar {
+        
+        .avatar {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #6366f1 0%, #5e35b1 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #fff;
-            margin-right: 8px;
-            margin-left: 0;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.2s ease;
         }
-        .bot .avatar svg {
-            width: 22px;
-            height: 22px;
-            display: block;
+        .avatar:hover {
+            transform: scale(1.1);
         }
+        .avatar svg {
+            width: 20px;
+            height: 20px;
+        }
+
         .bubble {
-            max-width: 70%;
             background: #f3f4f6;
             border-radius: 12px;
-            padding: 12px 16px;
+            padding: 10px 14px;
             font-size: 1rem;
+            line-height: 1.5;
             color: #222;
-            position: relative;
-            overflow-x: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
-        .bubble .echarts, .bubble canvas {
-            display: block;
-            margin: 24px auto 0 auto;
-            max-width: 100%;
-            height: 400px;
-            min-width: 320px;
+        .message.user .bubble {
+            background: var(--user-bubble-bg);
+            color: var(--user-bubble-text);
+            border-radius: 12px 12px 2px 12px;
         }
-        .bubble .echarts {
-            z-index: 1;
+        .message.bot .bubble {
+            background: var(--bot-bubble-bg);
+            color: var(--bot-bubble-text);
+            border-radius: 12px 12px 12px 2px;
         }
-        .bubble script {
-            display: none;
+        
+        /* --- Chat Input --- */
+        .chat-input-form {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            border-top: 1px solid var(--border-light);
+            background: var(--background-light);
+            gap: 12px;
+            flex-shrink: 0;
         }
-        /* Flashy and interactive button styles */
-        button, .session-btn {
-            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+
+        #input {
+            flex-grow: 1;
+            padding: 12px 18px;
+            border-radius: 22px;
+            border: 1px solid #e0e0e0;
+            font-size: 1rem;
+            outline: none;
+            resize: none;
+            min-height: 44px;
+            max-height: 150px;
+            line-height: 1.5;
+            background: #fff;
+            transition: border-color 0.2s;
         }
-        button:hover, .session-btn:hover {
-            background: linear-gradient(90deg, #5e35b1 0%, #6366f1 100%);
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: translateY(-2px) scale(1.04);
+        #input:focus {
+            border-color: var(--primary-color);
         }
-        button:active, .session-btn:active {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            box-shadow: 0 2px 8px rgba(99,102,241,0.28);
-            transform: translateY(1px) scale(0.98);
-        }
-        /* Custom send button */
+
         #send {
-            background: none;
+            background: var(--primary-color);
             border: none;
             border-radius: 50%;
-            width: 72px;
-            height: 72px;
+            width: 44px;
+            height: 44px;
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
         #send:hover {
-            background: #ece9f7;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: scale(1.12);
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(99,102,241,0.2);
         }
-        #send:active {
-            background: #d1d5db;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.28);
-            transform: scale(0.97);
+        #send:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
         #send svg {
-            width: 40px;
-            height: 40px;
-            stroke: #6366f1;
-            stroke-width: 3.5;
-            fill: none;
+            width: 20px;
+            height: 20px;
+            stroke: var(--text-light);
+            stroke-width: 2;
         }
-        /* Hide default button text */
-        #send span { display: none; }
+
+        /* --- Rich Content (Tables/Charts) --- */
         .chat-table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
+            border-collapse: collapse;
             margin: 12px 0;
-            font-size: 1rem;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e0e7ff 100%);
-            border-radius: 12px;
+            font-size: 0.9rem;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.08);
         }
         .chat-table th, .chat-table td {
-            padding: 14px 18px;
+            padding: 10px 12px;
             text-align: left;
-            border-bottom: 1px solid #d1d5db;
+            border-bottom: 1px solid var(--border-light);
         }
         .chat-table th {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            font-weight: 700;
-            border-bottom: 2px solid #5e35b1;
+            background: var(--primary-color);
+            color: var(--text-light);
+            font-weight: 600;
         }
         .chat-table tr:last-child td {
             border-bottom: none;
         }
-        .chat-table tr:hover td {
-            background: #ede7f6;
-            transition: background 0.2s;
+        .chat-table tr:nth-child(even) {
+            background: #f9f9f9;
         }
-        .chat-table tr:nth-child(even) td {
-            background: #f3f4f6;
-        }
-        /* Chart.js canvas styling */
-        .chat-messages canvas {
+
+        .bubble .echarts, .bubble canvas {
             display: block;
-            margin: 18px auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            padding: 12px;
+            margin: 16px auto 0 auto;
+            max-width: 100%;
+            height: 300px;
         }
-        /* Session list styling */
-        .sidebar {
-            height: 100vh;
-            min-height: 0;
-            flex-shrink: 0;
-            background: #f7f7fc;
-            border-right: 1px solid #ece9f7;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 32px 0;
-        }
-        .session-btn {
-            width: 180px;
-            margin-bottom: 8px;
-            background: #fff;
-            border: 1px solid #ece9f7;
-            border-radius: 6px;
-            padding: 8px;
-            font-size: 0.95rem;
-            cursor: pointer;
-            text-align: left;
-        }
-        .chat-input {
-            display: flex;
-            align-items: center;
-            padding: 16px 24px;
-            border-top: 1px solid #f0f0f0;
-            background: #f7f7fc;
-            gap: 16px;
-            min-height: 80px;
-            flex-shrink: 0;
-            position: relative;
-            bottom: 0;
-            z-index: 2;
-            margin-bottom: 0;
-            min-width: 200px; /* Prevents chat input from becoming too small */
-        }
-        .chat-input textarea {
-            flex: 1 1 0%;
-            padding: 16px;
-            border-radius: 999px; /* Make the textarea circular */
-            border: 1px solid #e0e0e0;
-            font-size: 1.15rem;
-            outline: none;
-            resize: none;
-            min-height: 56px;
-            max-height: 220px;
-            line-height: 1.6;
-            margin-right: 0;
-            box-sizing: border-box;
-            width: 100%;
-            height: 56px;
-            background: #fff;
-            min-width: 100px; /* Prevents textarea from becoming unusable */
-        }
-        /* 1. Make session list width responsive */
-        .sidebar > div[style] {
-            width: 100%;
-            max-width: 180px;
-            min-width: 0;
-            box-sizing: border-box;
-        }
-        /* 2. Accessibility improvements */
-        #send span {
-            display: none;
-        }
-        #send[aria-label]::after {
-            content: attr(aria-label);
-            position: absolute;
-            left: -9999px;
-            top: auto;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-        }
-        .bot-avatar-anim {
-            transition: transform 0.3s cubic-bezier(.68,-0.55,.27,1.55), box-shadow 0.3s;
-            box-shadow: 0 2px 12px rgba(99,102,241,0.18);
-        }
-        .bot-avatar-anim:hover {
-            transform: scale(1.15) rotate(-8deg);
-            box-shadow: 0 6px 24px rgba(99,102,241,0.28);
-        }
-        .bot-avatar-anim.copied {
-            animation: copied-flash 0.8s;
-        }
-        @keyframes copied-flash {
-            0% { box-shadow: 0 0 0 0 #5e35b1; }
-            50% { box-shadow: 0 0 24px 8px #6366f1; }
-            100% { box-shadow: 0 2px 12px rgba(99,102,241,0.18); }
-        }
-        .message-anim {
-            animation: messageFadeIn 0.7s cubic-bezier(.68,-0.55,.27,1.55);
-        }
-        @keyframes messageFadeIn {
-            0% {
-                opacity: 0;
-                transform: translateY(24px) scale(0.95);
+        
+        /* --- Desktop & Tablet Styles --- */
+        @media (min-width: 768px) {
+            .sidebar {
+                position: static; /* No longer an overlay */
+                transform: translateX(0); /* Always visible */
+                box-shadow: none;
+                width: 260px;
+                padding: 24px;
             }
-            60% {
-                opacity: 1;
-                transform: translateY(-4px) scale(1.04);
+            .sidebar-toggle {
+                display: none; /* Hide toggle on larger screens */
             }
-            100% {
-                opacity: 1;
-                transform: translateY(0) scale(1);
+            .chat-header {
+                padding: 16px 24px;
+                font-size: 1.5rem;
             }
-        }
-        .sidebar-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
-            margin-bottom: 32px;
-            justify-content: flex-start;
-            min-height: 60px;
-            position: relative;
-            padding: 16px 16px 0 45px;
-        }
-        .sidebar-toggle {
-            width: 44px;
-            height: 44px;
-            background: #fff;
-            border: 1px solid #ece9f7;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 10;
-            box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-            transition: background 0.2s, box-shadow 0.2s, transform 0.3s cubic-bezier(.68,-0.55,.27,1.55);
-            margin: 0;
-        }
-        .sidebar-toggle:hover {
-            background: #ece9f7;
-            box-shadow: 0 4px 16px rgba(99,102,241,0.18);
-            transform: scale(1.08);
-        }
-        .sidebar-toggle .lines {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .sidebar-toggle .line {
-            width: 24px;
-            height: 3px;
-            background: #6366f1;
-            border-radius: 2px;
-        }
-        #newConversation {
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            padding: 12px 32px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            margin-bottom: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            height: 44px;
-        }
-        #newConversation span {
-            display: inline;
-        }
-        #newConversation svg {
-            width: 22px;
-            height: 22px;
-        }
-        .sidebar.collapsed {
-            width: 60px !important;
-            min-width: 60px !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            border: none !important;
-            overflow: hidden !important;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .sidebar.collapsed .sidebar-header {
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 0;
-            min-height: 120px;
-            padding: 16px 8px 0 8px;
-        }
-        .sidebar.collapsed #newConversation {
-            width: 38px;
-            height: 38px;
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%);
-            color: #fff;
-            box-shadow: none;
-            border: none;
-            padding: 0;
-            margin-bottom: 0;
-            justify-content: center;
-            align-items: center;
-            display: flex;
-        }
-        .sidebar.collapsed #newConversation span {
-            display: none;
-        }
-        .sidebar.collapsed #newConversation svg {
-            width: 22px;
-            height: 22px;
-        }
-        .sidebar.collapsed .sidebar-toggle {
-            margin-top: 0;
-        }
-        .sidebar.collapsed > div:not(.sidebar-header) {
-            display: none;
-        }
-        /* Animation for sidebar show/hide */
-        .sidebar-anim {
-            animation: sidebarSlideIn 0.35s cubic-bezier(.68,-0.55,.27,1,55);
-        }
-        .sidebar-anim-hide {
-            animation: sidebarSlideOut 0.35s cubic-bezier(.68,-0.55,.27,1,55);
-        }
-        @keyframes sidebarSlideIn {
-            0% { width: 60px; min-width: 60px; opacity: 0.5; }
-            100% { width: 250px; min-width: 250px; opacity: 1; }
-        }
-        @keyframes sidebarSlideOut {
-            0% { width: 250px; min-width: 250px; opacity: 1; }
-            100% { width: 60px; min-width: 60px; opacity: 0.5; }
-        }
-        .main-wrapper, .main-chat, .chat-container {
-            min-width: 0;
-            overflow-x: auto;
-            min-width: 260px; /* Prevents horizontal shrinking below 260px */
-        }
-        /* 3. Keyboard navigation for sidebar toggle and session buttons */
-        .sidebar-toggle, .session-btn {
-            outline: none;
-        }
-        .sidebar-toggle:focus, .session-btn:focus {
-            box-shadow: 0 0 0 2px #6366f1;
-        }
-        .session-btn:hover,
-        .session-btn:focus,
-        .session-btn:active,
-        .session-btn.selected,
-        .session-btn[aria-current="true"] {
-            color: #fff !important;
-            background: linear-gradient(90deg, #6366f1 0%, #5e35b1 100%) !important;
-            outline: none;
+            .chat-messages {
+                padding: 24px;
+            }
+            .chat-input-form {
+                padding: 16px 24px;
+            }
+            .message {
+                max-width: 75%;
+            }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
     <div class="main-wrapper">
+        <!-- Sidebar for session history -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-toggle" id="sidebarToggle">
-                    <div class="lines">
-                        <div class="line"></div>
-                        <div class="line"></div>
-                        <div class="line"></div>
-                    </div>
-                </div>
                 <button id="newConversation">
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="10" width="16" height="2.5" rx="1.25" fill="#fff"/>
-                        <rect x="10" y="3" width="2.5" height="16" rx="1.25" fill="#fff"/>
+                        <path d="M11 3V19M3 11H19" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <span>New chat</span>
+                    <span>New Chat</span>
                 </button>
             </div>
-            <div style="width: 180px; margin-top: 8px;">
-                <div style="font-size: 1.05rem; font-weight: 600; color: #888; margin-bottom: 12px;">Recent</div>
+            <div class="session-list-container">
+                Recent
                 <div id="sessionList"></div>
             </div>
         </div>
+
+        <!-- Main chat interface -->
         <div class="main-chat">
-            <div class="chat-container">
-                <div class="chat-header">HomeBot</div>
-                <div class="chat-messages" id="messages"></div>
-                <form class="chat-input" id="chatForm" autocomplete="off">
-                    <textarea id="input" placeholder="Ask away.." autofocus></textarea>
-                    <button type="submit" id="send" aria-label="Send">
-                        <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="20" cy="20" r="18" fill="#f7f7fc" />
-                            <path d="M20 28 V12" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
-                            <path d="M14 18 L20 12 L26 18" stroke="#6366f1" stroke-width="3" stroke-linecap="round" fill="none"/>
-                        </svg>
-                        <span>Send</span>
-                    </button>
-                </form>
+            <div class="chat-header">
+                <div class="sidebar-toggle" id="sidebarToggle">
+                    <div class="line"></div>
+                    <div class="line"></div>
+                    <div class="line"></div>
+                </div>
+                HomeBot
             </div>
+            <div class="chat-messages" id="messages">
+                <!-- Messages will be injected here -->
+            </div>
+            <form class="chat-input-form" id="chatForm" autocomplete="off">
+                <textarea id="input" placeholder="Ask away..." autofocus rows="1"></textarea>
+                <button type="submit" id="send" aria-label="Send">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </form>
         </div>
     </div>
+
     <script>
-        let sessionId = generateSessionId();
-        let sessions = [];
+        // --- DOM Element References ---
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const newConversationBtn = document.getElementById('newConversation');
+        const sessionList = document.getElementById('sessionList');
+        const messagesContainer = document.getElementById('messages');
+        const chatForm = document.getElementById('chatForm');
+        const input = document.getElementById('input');
+        const sendBtn = document.getElementById('send');
 
+        // --- State Management ---
+        let currentSessionId = null;
+        let sessions = {}; // Store sessions by ID: { id: { summary: '...', messages: [...] }}
+
+        // --- Core Functions ---
         function generateSessionId() {
-            return 'sess_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+            return 'sess_' + Date.now();
         }
 
-        function resetSession() {
-            sessionId = generateSessionId();
+        function startNewSession() {
+            currentSessionId = generateSessionId();
+            messagesContainer.innerHTML = '';
+            input.value = '';
+            input.focus();
+            renderSessionList(); // To deselect any active session
         }
 
-        function addSessionSummary(summary, id, messages) {
-            sessions.push({ summary, id, messages: messages || [summary] });
+        // --- Message Handling ---
+        function addMessage(text, sender, sessionId) {
+            if (!sessions[sessionId]) {
+                sessions[sessionId] = { summary: 'New Chat', messages: [] };
+            }
+            sessions[sessionId].messages.push({ sender, text });
+
+            // Update summary for the first user message
+            if (sender === 'user' && sessions[sessionId].messages.length === 1) {
+                sessions[sessionId].summary = text.length > 30 ? text.substring(0, 27) + '...' : text;
+            }
+
             renderSessionList();
-        }
+            
+            // Only render the message if it belongs to the currently active session
+            if (sessionId === currentSessionId) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `message ${sender}`;
 
-        function updateSessionSummary(newMessage, id) {
-            const session = sessions.find(s => s.id === id);
-            if (session) {
-                session.messages.push(newMessage);
-                summarizeSession(session);
+                // Add avatar for bot messages
+                if (sender === 'bot') {
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar';
+                    avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12ZM12 15C8.13401 15 5 18.134 5 22H19C19 18.134 15.866 15 12 15Z" fill="white"/></svg>`;
+                    avatar.title = "Click to copy response";
+                    avatar.onclick = () => copyToClipboard(text, avatar);
+                    msgDiv.appendChild(avatar);
+                }
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+
+                // Sanitize and render content
+                // This is a simple check; for production, use a robust library like DOMPurify
+                if (/<(canvas|div class="echarts"|table)/.test(text)) {
+                    bubble.innerHTML = text;
+                } else {
+                    bubble.textContent = text;
+                }
+                
+                msgDiv.appendChild(bubble);
+                messagesContainer.appendChild(msgDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                // Render charts if any
+                renderChartsInBubble(bubble);
             }
         }
 
-        async function summarizeSession(session) {
-            try {
-                const res = await fetch('/summarize_session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: session.messages })
-                });
-                const data = await res.json();
-                session.summary = data.summary;
-                renderSessionList();
-            } catch {
-                // fallback: join first and last message
-                session.summary = session.messages[0] + ' ... ' + session.messages[session.messages.length - 1];
-                renderSessionList();
-            }
-        }
-
-        /* 5. Session switching: reload previous messages (in-memory only) */
-        function renderSessionMessages(session) {
-            messages.innerHTML = '';
-            session.messages.forEach((msg, idx) => {
-                addMessage(msg, idx % 2 === 0 ? 'user' : 'bot');
-            });
-        }
-
+        // --- UI Rendering ---
         function renderSessionList() {
-            const sessionList = document.getElementById('sessionList');
             sessionList.innerHTML = '';
-            sessions.forEach((s, idx) => {
+            Object.keys(sessions).forEach(id => {
+                const session = sessions[id];
                 const btn = document.createElement('button');
-                btn.textContent = s.summary;
                 btn.className = 'session-btn';
-                btn.tabIndex = 0;
-                btn.onclick = function() {
-                    sessionId = s.id;
-                    renderSessionMessages(s);
-                };
-                btn.onkeydown = function(e) {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        btn.click();
-                    }
-                };
+                btn.textContent = session.summary;
+                btn.dataset.sessionId = id;
+                if (id === currentSessionId) {
+                    btn.classList.add('selected');
+                }
+                btn.onclick = () => switchSession(id);
                 sessionList.appendChild(btn);
             });
         }
 
-        /* 4. Sanitize message content before rendering */
-        function escapeHTML(str) {
-            return str.replace(/[&<>"']/g, function(tag) {
-                const chars = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                };
-                return chars[tag] || tag;
-            });
+        function switchSession(sessionId) {
+            currentSessionId = sessionId;
+            messagesContainer.innerHTML = ''; // Clear current messages
+            const session = sessions[sessionId];
+            if (session) {
+                session.messages.forEach(msg => {
+                    // Re-add messages without adding them to the session log again
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `message ${msg.sender}`;
+                    if (msg.sender === 'bot') {
+                        const avatar = document.createElement('div');
+                        avatar.className = 'avatar';
+                        avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12ZM12 15C8.13401 15 5 18.134 5 22H19C19 18.134 15.866 15 12 15Z" fill="white"/></svg>`;
+                        avatar.title = "Click to copy response";
+                        avatar.onclick = () => copyToClipboard(msg.text, avatar);
+                        msgDiv.appendChild(avatar);
+                    }
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    if (/<(canvas|div class="echarts"|table)/.test(msg.text)) {
+                        bubble.innerHTML = msg.text;
+                    } else {
+                        bubble.textContent = msg.text;
+                    }
+                    msgDiv.appendChild(bubble);
+                    messagesContainer.appendChild(msgDiv);
+                    renderChartsInBubble(bubble);
+                });
+            }
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            renderSessionList(); // To update the 'selected' class
+            if (window.innerWidth < 768) {
+                sidebar.classList.remove('is-open'); // Close sidebar on mobile after selection
+            }
         }
 
-        function addMessage(text, sender) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${sender} message-anim`;
-            let avatar;
-            if (sender === 'bot') {
-                avatar = document.createElement('div');
-                avatar.className = 'avatar bot-avatar-anim';
-                avatar.innerHTML = `<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="30" cy="30" r="28" fill="url(#grad)" />
-                    <defs>
-                        <radialGradient id="grad" cx="50%" cy="50%" r="50%">
-                            <stop offset="0%" stop-color="#6366f1" />
-                            <stop offset="100%" stop-color="#5e35b1" />
-                        </radialGradient>
-                    </defs>
-                    <path d="M22 30c0-6 16-6 16 0" stroke="#fff" stroke-width="4" fill="none"/>
-                    <circle cx="26" cy="26" r="3" fill="#fff"/>
-                    <circle cx="34" cy="26" r="3" fill="#fff"/>
-                </svg>`;
-                avatar.title = "Click to copy response";
-                avatar.style.cursor = "pointer";
-                avatar.onclick = function() {
-                    const bubble = msgDiv.querySelector('.bubble');
-                    if (bubble) {
-                        navigator.clipboard.writeText(bubble.textContent);
-                        avatar.classList.add('copied');
-                        setTimeout(() => avatar.classList.remove('copied'), 800);
-                    }
-                };
-                msgDiv.appendChild(avatar);
-            }
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble';
-            // Only allow HTML for charts/tables, otherwise escape
-            if (/<(canvas|div class=\"echarts\"|table|th|tr|td|script)/.test(text)) {
-                bubble.innerHTML = text;
-            } else {
-                bubble.innerHTML = escapeHTML(text);
-            }
-            msgDiv.appendChild(bubble);
-            messages.appendChild(msgDiv);
-            messages.scrollTop = messages.scrollHeight;
-            setTimeout(() => msgDiv.classList.remove('message-anim'), 700);
-
-            // Chart.js auto-render support
-            const canvases = bubble.querySelectorAll('canvas[id]');
-            const scripts = bubble.querySelectorAll('script');
-            scripts.forEach(script => {
-                try {
-                    // Evaluate the script in the context of the page
-                    // Only allow if script is for chart rendering
-                    if (/Chart/.test(script.textContent)) {
-                        eval(script.textContent);
-                    }
-                } catch (e) {
-                    console.error('Chart.js script error:', e);
-                }
-            });
-
-            // ECharts auto-render support
-            const echartsDivs = bubble.querySelectorAll('div.echarts');
-            echartsDivs.forEach((div, idx) => {
-                if (!div.id) {
-                    div.id = 'echarts_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + idx;
-                }
-            });
-            const echartsScripts = bubble.querySelectorAll('script');
-            echartsScripts.forEach(script => {
-                try {
-                    if (/echarts/.test(script.textContent)) {
-                        eval(script.textContent);
-                    }
-                } catch (e) {
-                    console.error('ECharts script error:', e);
-                }
-            });
-        }
-
-        const input = document.getElementById('input');
-        const send = document.getElementById('send');
-        const messages = document.getElementById('messages');
-        const chatForm = document.getElementById('chatForm');
-
-        input.addEventListener('keydown', function(e) {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                // Insert line break
-                const start = input.selectionStart;
-                const end = input.selectionEnd;
-                input.value = input.value.substring(0, start) + "\n" + input.value.substring(end);
-                input.selectionStart = input.selectionEnd = start + 1;
-                e.preventDefault();
-            } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                // Submit form
-                chatForm.requestSubmit();
-                e.preventDefault();
-            }
-        });
-
-        chatForm.onsubmit = async function(e) {
+        // --- Event Handlers ---
+        chatForm.onsubmit = async (e) => {
             e.preventDefault();
             const text = input.value.trim();
             if (!text) return;
-            addMessage(text, 'user');
+
+            addMessage(text, 'user', currentSessionId);
             input.value = '';
-            send.disabled = true;
-            let firstBotReply = '';
-            try {
-                const res = await fetch('/send_message', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify([{ message: text, sessionid: sessionId }])
-                });
-                const data = await res.json();
-                addMessage(data.reply, 'bot');
-                firstBotReply = data.reply;
-                // If this is a new session, add it to the session list
-                if (!sessions.some(s => s.id === sessionId)) {
-                    addSessionSummary(text, sessionId, [text, firstBotReply]);
-                } else {
-                    // Update the summary for the current session with the latest user message
-                    updateSessionSummary(text, sessionId);
-                }
-            } catch {
-                addMessage('Sorry, there was an error.', 'bot');
-            }
-            send.disabled = false;
-        };
+            adjustTextareaHeight();
+            sendBtn.disabled = true;
 
-        document.getElementById('newConversation').onclick = function() {
-            document.getElementById('messages').innerHTML = '';
-            resetSession();
-        };
-
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        let sidebarCollapsed = false;
-        sidebarToggle.onclick = function() {
-            sidebarCollapsed = !sidebarCollapsed;
-            if (sidebarCollapsed) {
-                sidebar.classList.add('collapsed');
-                sidebar.classList.remove('sidebar-anim');
-                sidebar.classList.add('sidebar-anim-hide');
-            } else {
-                sidebar.classList.remove('collapsed');
-                sidebar.classList.remove('sidebar-anim-hide');
-                sidebar.classList.add('sidebar-anim');
-            }
+            // Simulate bot response
             setTimeout(() => {
-                sidebar.classList.remove('sidebar-anim');
-                sidebar.classList.remove('sidebar-anim-hide');
-            }, 400);
+                const botReply = `This is a simulated response to: "${text}". In a real app, this would come from a server. Here's a table example: <table class="chat-table"><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody><tr><td>Data 1</td><td>123</td></tr><tr><td>Data 2</td><td>456</td></tr></tbody></table>`;
+                addMessage(botReply, 'bot', currentSessionId);
+                sendBtn.disabled = false;
+            }, 1000);
         };
 
-        window.addEventListener('load', resetSession);
-        window.addEventListener('resize', function() {
-            const sidebar = document.getElementById('sidebar');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            // Collapse sidebar if window width <= 600px, expand if > 600px
-            if (window.innerWidth <= 600 && !sidebar.classList.contains('collapsed')) {
-                sidebar.classList.add('collapsed');
-            } else if (window.innerWidth > 600 && sidebar.classList.contains('collapsed')) {
-                sidebar.classList.remove('collapsed');
-            }
-        });
+        newConversationBtn.onclick = startNewSession;
+        sidebarToggle.onclick = () => sidebar.classList.toggle('is-open');
+
+        // Auto-resize textarea
+        input.addEventListener('input', adjustTextareaHeight);
+        function adjustTextareaHeight() {
+            input.style.height = 'auto';
+            input.style.height = (input.scrollHeight) + 'px';
+        }
+
+        // --- Utility Functions ---
+        function copyToClipboard(text, element) {
+            navigator.clipboard.writeText(text).then(() => {
+                element.style.background = '#4caf50'; // Green flash for success
+                setTimeout(() => {
+                    element.style.background = '';
+                }, 800);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    element.style.background = '#4caf50';
+                    setTimeout(() => { element.style.background = ''; }, 800);
+                } catch (err) {
+                    console.error('Fallback copy failed: ', err);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
+        function renderChartsInBubble(bubble) {
+            // ECharts auto-render
+            const echartsDivs = bubble.querySelectorAll('div.echarts');
+            echartsDivs.forEach((div) => {
+                const script = div.nextElementSibling;
+                if (script && script.tagName === 'SCRIPT' && /echarts/.test(script.textContent)) {
+                    try {
+                        // A safer eval by wrapping in a function
+                        new Function(script.textContent)();
+                    } catch (e) { console.error('ECharts script error:', e); }
+                }
+            });
+
+            // Chart.js auto-render
+            const canvases = bubble.querySelectorAll('canvas[id]');
+            canvases.forEach(canvas => {
+                const script = canvas.nextElementSibling;
+                if (script && script.tagName === 'SCRIPT' && /new Chart/.test(script.textContent)) {
+                    try {
+                        new Function('document', script.textContent)(document);
+                    } catch (e) { console.error('Chart.js script error:', e); }
+                }
+            });
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+            startNewSession();
+            adjustTextareaHeight();
+        };
+
     </script>
 </body>
 </html>
