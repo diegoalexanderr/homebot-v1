@@ -74,7 +74,6 @@ def summarize():
     if not messages:
         return jsonify({"summary": "No messages to summarize."}), 400
         
-    # Define a tool to get structured JSON output from the model
     tools = [{
         "type": "function",
         "function": {
@@ -103,7 +102,7 @@ def summarize():
         
         choice = response.choices[0].message
         summary = "Could not summarize."
-        emoji = "✨" # Default emoji
+        emoji = "✨" 
 
         if choice.tool_calls:
             tool_call = choice.tool_calls[0]
@@ -121,9 +120,6 @@ def summarize():
 # This endpoint calls OpenAI directly to get suggested replies
 @app.route('/api/suggestions', methods=['POST'])
 def get_suggestions():
-    """
-    Generates suggested replies for the conversation using the OpenAI API directly.
-    """
     if not OPENAI_API_KEY:
         return jsonify({"error": "OpenAI API key not configured."}), 500
 
@@ -140,11 +136,7 @@ def get_suggestions():
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "replies": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "An array of 3 short, relevant, and engaging replies based on the last message."
-                    }
+                    "replies": { "type": "array", "items": { "type": "string" }, "description": "An array of 3 short, relevant, and engaging replies." }
                 },
                 "required": ["replies"]
             }
@@ -173,6 +165,71 @@ def get_suggestions():
         print(f"Error generating suggestions with OpenAI: {e}")
         return jsonify({"suggestions": []}), 500
 
+# NEW: Endpoint for the Smart Context sidebar
+@app.route('/api/context', methods=['POST'])
+def get_context():
+    """
+    Analyzes the conversation to extract key entities and notes for the sidebar.
+    """
+    if not OPENAI_API_KEY:
+        return jsonify({"error": "OpenAI API key not configured."}), 500
+
+    data = request.json
+    messages = data.get('messages', [])
+    if len(messages) < 2:
+        return jsonify({"entities": [], "notes": []})
+
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "format_context_and_notes",
+            "description": "Extract key entities and create summary notes from a conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entities": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "term": {"type": "string", "description": "The key person, place, or concept."},
+                                "definition": {"type": "string", "description": "A brief, one-sentence definition."}
+                            }
+                        },
+                        "description": "A list of up to 3 key entities mentioned in the conversation."
+                    },
+                    "notes": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "A list of up to 3 key takeaways or important points to remember, phrased as short notes."
+                    }
+                },
+                "required": ["entities", "notes"]
+            }
+        }
+    }]
+    
+    prompt_messages = messages + [{"role": "system", "content": "Analyze the conversation. Extract key entities (people, places, concepts) and create a short list of key takeaways or notes. If no specific entities or notes are present, return empty arrays."}]
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=prompt_messages,
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "format_context_and_notes"}}
+        )
+        choice = response.choices[0].message
+        if choice.tool_calls:
+            tool_call = choice.tool_calls[0]
+            if tool_call.function.name == "format_context_and_notes":
+                arguments = json.loads(tool_call.function.arguments)
+                return jsonify(arguments)
+        
+        return jsonify({"entities": [], "notes": []})
+
+    except Exception as e:
+        print(f"Error generating context with OpenAI: {e}")
+        return jsonify({"entities": [], "notes": []}), 500
 
 if __name__ == '__main__':
     # This is for local development. In production, Gunicorn will be used.
