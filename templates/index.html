@@ -532,7 +532,8 @@
         // --- Message Handling ---
         function addMessage(text, role, sessionId) {
             if (!sessions[sessionId]) {
-                sessions[sessionId] = { summary: 'New Chat', messages: [], emoji: '💬' };
+                // Initialize session with empty context
+                sessions[sessionId] = { summary: 'New Chat', messages: [], emoji: '💬', entities: [], notes: [] };
             }
             const message = { role, content: text };
             sessions[sessionId].messages.push(message);
@@ -613,11 +614,17 @@
             currentSessionId = sessionId;
             messagesContainer.innerHTML = '';
             suggestionsContainer.innerHTML = '';
-            entitiesContent.innerHTML = '';
-            notesContent.innerHTML = '';
-            rightSidebar.classList.remove('is-open');
             const session = sessions[sessionId];
-            if (session) session.messages.forEach(msg => renderSingleMessage(msg));
+            if (session) {
+                session.messages.forEach(msg => renderSingleMessage(msg));
+                // Restore context from session data
+                renderContextSidebar({ entities: session.entities, notes: session.notes });
+            } else {
+                // Clear context if there's no session data
+                entitiesContent.innerHTML = '';
+                notesContent.innerHTML = '';
+                rightSidebar.classList.remove('is-open');
+            }
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             renderSessionList();
             if (window.innerWidth < 768) {
@@ -640,7 +647,6 @@
             });
         }
         
-        // NEW: Function to render the context sidebar
         function renderContextSidebar(data) {
             entitiesContent.innerHTML = '';
             notesContent.innerHTML = '';
@@ -662,7 +668,6 @@
                 });
             }
 
-            // Only open the sidebar if there is content to show
             if ((data.entities && data.entities.length > 0) || (data.notes && data.notes.length > 0)) {
                 rightSidebar.classList.add('is-open');
             } else {
@@ -692,7 +697,7 @@
                 if (botReply) {
                     addMessage(botReply, 'assistant', sessionId);
                     fetchSuggestions(sessionId);
-                    fetchContext(sessionId); // Fetch context after bot replies
+                    fetchContext(sessionId); 
                 } else {
                      addMessage("Sorry, I didn't get a valid response from the workflow.", 'assistant', sessionId);
                 }
@@ -724,7 +729,6 @@
             }
         }
 
-        // NEW: Function to fetch context
         async function fetchContext(sessionId) {
             try {
                 const response = await fetch('/api/context', {
@@ -734,6 +738,11 @@
                 });
                 if (!response.ok) return;
                 const result = await response.json();
+                // Save context to the session object
+                if (sessions[sessionId]) {
+                    sessions[sessionId].entities = result.entities || [];
+                    sessions[sessionId].notes = result.notes || [];
+                }
                 renderContextSidebar(result);
             } catch (error) {
                 console.error("Context fetch failed:", error);
