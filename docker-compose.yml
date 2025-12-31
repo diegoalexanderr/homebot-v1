@@ -26,3 +26,5 @@ services:
 networks: # <-- ADD THIS SECTION AT THE BOTTOM
   adguard_local_macvlan_network:
     external: true
+    aliases:
+          - flask_chatbot
