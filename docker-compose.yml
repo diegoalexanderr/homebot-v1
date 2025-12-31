@@ -22,7 +22,7 @@ services:
       - flask
     networks:
       adguard_local_macvlan_network:
-        ipv4_address: 10.0.0.200
+        ipv4_address: 10.0.0.197
 
 networks:
   adguard_local_macvlan_network:
