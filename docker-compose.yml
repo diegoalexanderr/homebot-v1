@@ -11,7 +11,7 @@ services:
       - "5000"
     networks:
       adguard_local_macvlan_network:
-        ipv4_address: 10.0.0.192
+        ipv4_address: 10.0.0.190
 
   nginx:
     image: nginx:latest
@@ -24,7 +24,7 @@ services:
       - flask
     networks:
       adguard_local_macvlan_network:
-        ipv4_address: 10.0.0.193
+        ipv4_address: 10.0.0.190
 
 networks:
   adguard_local_macvlan_network:
